@@ -59,12 +59,13 @@ sh('/usr/bin/hdiutil', ['create', '-volname', productName, '-srcfolder', staging
 
 const attached = execFileSync('/usr/bin/hdiutil', ['attach', '-readwrite', '-noverify', '-noautoopen', rw], { encoding: 'utf8' });
 const volume = /** @type {string} */ (attached.match(/\/Volumes\/.+$/m)?.[0].trim());
-const disk = volume.slice('/Volumes/'.length);
 try {
   const { left, top, width, height, titlebar } = WINDOW;
+  // O Finder acha o volume pelo caminho: com outro "Respiro" montado, o nome do disco é ambíguo.
   execFileSync('/usr/bin/osascript', ['-e', `
+    set volumeRoot to POSIX file "${volume}" as alias
     tell application "Finder"
-      tell disk "${disk}"
+      tell folder volumeRoot
         open
         set current view of container window to icon view
         set toolbar visible of container window to false
