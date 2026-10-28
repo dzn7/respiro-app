@@ -1,148 +1,122 @@
 <div align="center">
 
-<img src="docs/assets/icon.png" width="128" height="128" alt="Ícone do Respiro">
+<img src="docs/assets/icon.png" width="120" height="120" alt="Ícone do Respiro">
 
 # Respiro
 
-**Seu Mac de dev, com espaço para respirar.**
+Seu Mac diz que o disco tá cheio e joga a culpa em "Dados do Sistema"?<br>
+O Respiro abre essa caixa-preta e devolve o espaço que seus projetos esqueceram para trás.
 
-Mostra o que ocupa o disco de quem programa e libera o que dá para apagar sem medo:
-caches de pacotes, Docker, `node_modules` esquecidos, Xcode, navegadores de teste e Homebrew.
-
-[![macOS](https://img.shields.io/badge/macOS-Apple_Silicon-1f1e1b?style=flat-square&logo=apple&logoColor=white)](#instalação)
+[![macOS](https://img.shields.io/badge/macOS-Apple_Silicon-1f1e1b?style=flat-square&logo=apple&logoColor=white)](#instalando)
 [![Versão](https://img.shields.io/badge/versão-0.2.0-b4552f?style=flat-square)](https://github.com/dzn7/respiro-app/releases/latest)
 [![Electron](https://img.shields.io/badge/Electron-44-2b2a27?style=flat-square&logo=electron&logoColor=9feaf9)](https://www.electronjs.org/)
-[![Sem telemetria](https://img.shields.io/badge/telemetria-nenhuma-2f7a4f?style=flat-square)](#privacidade)
-[![Idioma](https://img.shields.io/badge/interface-pt--BR-6b675e?style=flat-square)](#)
+[![Sem telemetria](https://img.shields.io/badge/telemetria-zero-2f7a4f?style=flat-square)](#privacidade)
 [![Licença](https://img.shields.io/badge/licença-proprietária-1f1e1b?style=flat-square)](LICENSE)
 
-[**Baixar o .dmg**](https://github.com/dzn7/respiro-app/releases/latest) ·
-[Como funciona](#como-o-respiro-decide-o-que-é-seguro) ·
-[Desenvolvimento](#desenvolvimento) ·
-[Perguntas](#perguntas-frequentes)
+### [Baixar para Mac](https://github.com/dzn7/respiro-app/releases/latest)
 
-<br>
+<img src="docs/assets/demo.gif" width="820" alt="Demonstração: o Respiro abre, filtra os node_modules em uso, busca por 'app' e simula a limpeza dos caches de pacotes, com o número contando até o total">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/main-dark.png">
-  <img src="docs/assets/screenshots/main-light.png" width="820" alt="Tela principal do Respiro: espaço livre do disco, barra segmentada por categoria, total que pode ser liberado com segurança e lista de categorias">
-</picture>
-
-<sub>A imagem acompanha o tema do seu GitHub. Dados de demonstração.</sub>
+<sub>Gravado com dados de exemplo e o modo simular ligado. Nada foi apagado nessa brincadeira.</sub>
 
 </div>
 
----
-
-## Por que existe
-
-Em um Mac de desenvolvimento, dezenas de gigabytes somem em pastas que ninguém olha: o store do pnpm, imagens e volumes do Docker, `node_modules` de projetos de meses atrás, DerivedData, navegadores baixados pelo Playwright. O Armazenamento do macOS chama tudo isso de "Dados do Sistema" e não diz o que é seguro apagar.
-
-O Respiro abre em menos de um segundo, mostra o estado do disco e separa o que **pode sair sem risco** do que **pede atenção**. Para limpar, usa o comando oficial de cada ferramenta e manda pastas para a Lixeira. Arquivos pessoais e código-fonte ficam fora do alcance dele.
-
-> [!IMPORTANT]
-> O Respiro nunca roda `rm`. Cada exclusão passa por um único módulo, com tabela fechada de comandos e regras de caminho testadas. Veja [Segurança](#segurança).
-
-## O que ele faz
-
-| | |
-|---|---|
-| **Vê o disco em um segundo** | Espaço livre e ocupado numa barra segmentada por categoria. A última análise abre na hora; a nova roda em segundo plano. |
-| **Separa o seguro do resto** | Cada item cai em *Seguro* (vem marcado), *Pede atenção* (desmarcado, com o motivo) ou *Em uso* (projeto ativo, app aberto). |
-| **Limpa do jeito certo** | `pnpm store prune`, `npm cache clean`, `docker image rm`, `brew cleanup`… Pastas sem comando oficial vão para a Lixeira. |
-| **Mostra antes de apagar** | A confirmação lista cada item, o método e o total. O modo **simular** percorre tudo sem apagar nada. |
-| **Mede o ganho real** | Compara o espaço livre antes e depois. Quando o disco ganha menos do que foi removido (clones do APFS, Docker Desktop), explica por quê. |
-| **Trata o que é delicado** | Volumes do Docker e a Lixeira só saem um por vez, com aceite explícito. Pastas criadas com `sudo` pedem a senha do macOS. |
-| **Filtra listas longas** | Filtro por estado, busca por nome ou pasta, ordenação e "marcar visíveis". |
-| **Lembra do que você ignora** | "Ignorar sempre" tira um item das análises; em Ajustes ele volta com um clique. |
-
-<details>
-<summary><b>Ver mais telas</b></summary>
 <br>
 
-| Detalhe com filtros (escuro) | Confirmação com a lista exata |
-|---|---|
-| <img src="docs/assets/screenshots/filter-dark.png" alt="Detalhe de node_modules filtrado por itens em uso, com busca"> | <img src="docs/assets/screenshots/confirm-light.png" alt="Confirmação listando o que vai para a Lixeira e o que é limpo por comando oficial"> |
+## Onde foi parar meu disco?
 
-| Detalhe da categoria | Docker, com volumes um por vez |
-|---|---|
-| <img src="docs/assets/screenshots/detail-light.png" alt="Detalhe de node_modules agrupado em Seguros e Em uso"> | <img src="docs/assets/screenshots/docker-dark.png" alt="Detalhe do Docker com aviso do Docker Desktop e volumes"> |
+Se você programa no Mac, conhece a cena. Um dia aparece o aviso de disco cheio, você abre o Armazenamento do macOS e a maior fatia se chama "Dados do Sistema". Sem lista, sem explicação, sem botão.
 
-| Primeira análise | Ajustes |
-|---|---|
-| <img src="docs/assets/screenshots/loading-light.png" alt="Lista de verificação da primeira análise, cada categoria se completando no lugar"> | <img src="docs/assets/screenshots/settings-dark.png" alt="Ajustes: aparência, analisar ao abrir, modo simular, projetos parados, itens ignorados e Acesso Total ao Disco"> |
+Fui procurar no Terminal. No meu Mac, só o store do pnpm tinha 11 GB e o Docker passava de 60 GB entre imagens, containers parados e cache de build. Somando `node_modules` de projeto antigo, DerivedData e os navegadores que o Playwright baixa, era espaço de sobra para um sistema inteiro.
+
+Dava para sair apagando com `rm -rf`. Também dava para apagar o volume do Postgres errado numa sexta à noite. Fiz o Respiro para não precisar escolher entre disco cheio e susto.
+
+## Como é usar
+
+1. **Abre o app.** Em menos de um segundo aparece o disco, uma barra colorida mostrando quem ocupa o quê e, em letra grande, quanto dá para liberar sem risco.
+2. **Clica numa categoria.** Cada item vem separado em seguro, pede atenção ou em uso, com o motivo escrito em português. Listas grandes ganham filtro e busca.
+3. **Aperta "Revisar e liberar…".** Ele mostra a lista exata do que vai sair e como. Pasta vai para a Lixeira. Cache de ferramenta é limpo pelo comando da própria ferramenta.
+4. **Confere o resultado.** O app compara o espaço livre antes e depois. Quando o disco ganha menos do que foi removido, ele conta o motivo em vez de fingir que deu tudo certo.
+
+<details>
+<summary><b>Quero ver mais telas</b></summary>
+<br>
+
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/screenshots/main-dark.png" alt="Tela principal no modo escuro"><p align="center"><sub>Tela principal, modo escuro</sub></p></td>
+<td width="50%"><img src="docs/assets/screenshots/confirm-light.png" alt="Confirmação com a lista do que vai sair"><p align="center"><sub>Antes de apagar, a lista inteira</sub></p></td>
+</tr>
+<tr>
+<td><img src="docs/assets/screenshots/detail-light.png" alt="Detalhe de node_modules em grupos"><p align="center"><sub>Seguros em cima, em uso recolhidos</sub></p></td>
+<td><img src="docs/assets/screenshots/docker-dark.png" alt="Detalhe do Docker"><p align="center"><sub>Docker, com volume um por vez</sub></p></td>
+</tr>
+<tr>
+<td><img src="docs/assets/screenshots/loading-light.png" alt="Primeira análise como lista de verificação"><p align="center"><sub>Primeira análise, item por item</sub></p></td>
+<td><img src="docs/assets/screenshots/settings-dark.png" alt="Ajustes"><p align="center"><sub>Ajustes</sub></p></td>
+</tr>
+</table>
 
 </details>
 
-## O que ele analisa
+## O que ele encontra
 
-Detecta o que existe na máquina; categoria ausente não aparece.
+Só aparece o que existe na sua máquina. Não usa Docker? A categoria nem mostra a cara.
 
-| Categoria | Onde olha | Como limpa |
+| | Onde mora | Como ele limpa |
 |---|---|---|
-| **Caches de pacotes** | pnpm store e metadados, npm, Yarn 1, Bun, pip | `pnpm store prune` · `npm cache clean --force` · `yarn cache clean` · `bun pm cache rm` · `pip3 cache purge` |
-| **Docker** | containers parados, imagens sem uso, cache de build, volumes soltos | `docker container rm` · `docker image rm` · `docker builder prune -a -f` · `docker volume rm` (um por vez) |
-| **node_modules** | projetos sob a sua pasta pessoal, parados há mais de 30 dias (ajustável) | Lixeira |
-| **Xcode** | DerivedData, simuladores indisponíveis, cache do Xcode | Lixeira · `xcrun simctl delete unavailable` |
-| **Navegadores de teste** | revisões do Playwright que nenhum projeto usa | Lixeira (mesma regra do coletor do Playwright) |
-| **Homebrew** | downloads em cache e versões antigas | `brew cleanup --prune=all` (prévia com `-n`) |
-| **Caches e logs de apps** | `~/Library/Caches` e `~/Library/Logs`, sem pastas da Apple | Lixeira |
-| **Lixeira** | `~/.Trash` | Finder › Esvaziar Lixeira, com confirmação própria |
+| **Caches de pacotes** | pnpm, npm, Yarn, Bun, pip | `pnpm store prune`, `npm cache clean --force`, `yarn cache clean`, `bun pm cache rm`, `pip3 cache purge` |
+| **Docker** | containers parados, imagens sem uso, cache de build, volumes soltos | `docker container rm`, `docker image rm`, `docker builder prune` e volume só um de cada vez |
+| **node_modules** | projetos parados há mais de 30 dias (você ajusta) | manda para a Lixeira |
+| **Xcode** | DerivedData, simulador que não abre mais, cache | Lixeira ou `xcrun simctl delete unavailable` |
+| **Navegadores de teste** | versões do Playwright que nenhum projeto usa | Lixeira, com a mesma regra que o Playwright usa |
+| **Homebrew** | instaladores baixados e versões antigas | `brew cleanup --prune=all` |
+| **Caches e logs de apps** | `~/Library/Caches` e `~/Library/Logs` | Lixeira, e o que é da Apple ele nem toca |
+| **Lixeira** | `~/.Trash` | esvazia, mas só depois de você marcar "entendi" |
 
-## Como o Respiro decide o que é seguro
+## "Tá, mas é seguro?"
+
+Pergunta justa. A resposta curta: ele não mexe em documento, foto, código, configuração nem nada que você criou. E não existe `rm` em lugar nenhum do código.
+
+A resposta longa é o jeito como ele separa as coisas:
 
 ```mermaid
 flowchart TD
-    A["Análise (só leitura)"] --> B{"O item está em uso?"}
-    B -- "projeto mexido nos últimos 30 dias,<br/>app ou Xcode aberto" --> U["Em uso<br/>nunca vem marcado"]
-    B -- "não" --> C{"Tem risco ou dono diferente?"}
-    C -- "volume do Docker, Lixeira,<br/>pasta do root, cache recente" --> T["Pede atenção<br/>desmarcado, com o motivo"]
-    C -- "não" --> S["Seguro<br/>marcado e somado ao total"]
-    B -- "container rodando,<br/>imagem ou volume ligados" --> L["Bloqueado<br/>o próprio Docker recusa"]
+    A(["Achou um item"]) --> B{"Você está usando?"}
+    B -- "projeto mexido há pouco,<br/>app ou Xcode aberto" --> U["Em uso<br/>fica desmarcado; dá para limpar<br/>se você quiser mesmo"]
+    B -- "não" --> C{"Tem algum risco?"}
+    C -- "volume do Docker, Lixeira,<br/>pasta criada com sudo" --> T["Pede atenção<br/>desmarcado e com o motivo"]
+    C -- "não" --> S["Seguro<br/>vem marcado e entra no total"]
+    B -- "container rodando ou<br/>imagem em uso" --> L["Bloqueado<br/>o próprio Docker não deixa"]
 ```
 
-Na hora de limpar, nada é confiado à tela:
-
-```mermaid
-flowchart LR
-    R["Interface<br/>envia só ids"] --> M["Processo principal<br/>acha o item na última análise"]
-    M --> V{"Revalida agora"}
-    V -- "caminho fora das raízes,<br/>atalho, projeto voltou a ser usado" --> X["Recusa e mostra o motivo"]
-    V -- "pasta" --> TR["Lixeira"]
-    V -- "cache de ferramenta" --> CMD["Comando oficial<br/>tabela fechada, sem shell"]
-    V -- "pasta criada com sudo" --> PW["Senha do macOS → chown"] --> TR
-```
-
-## Segurança
-
-<details open>
-<summary><b>Regras que o código garante</b></summary>
+<details>
+<summary><b>Me mostra as regras de verdade</b></summary>
 <br>
 
-- **Um lugar só apaga.** Todo código que remove algo vive em [`src/main/cleaner.js`](src/main/cleaner.js). O `npm run check` reprova `rm`, `unlink`, `trashItem` ou comandos de limpeza em qualquer outro arquivo.
-- **A interface nunca manda caminho.** Ela envia o id do item; o processo principal resolve e revalida.
-- **Caminhos permitidos são fechados.** Só filhos diretos de `~/Library/Caches`, `~/Library/Logs`, DerivedData, simuladores, revisões do Playwright, stores antigos do pnpm e `node_modules` ao lado de um `package.json`. Nada de link simbólico nem pasta da Apple.
-- **Comandos têm tabela e argumento validado.** `execFile` sem shell; id de imagem e nome de volume passam por expressão regular.
-- **Pasta vai para a Lixeira**, não some. Exclusão permanente só por comando oficial ou ao esvaziar a Lixeira com aceite.
-- **Senha só para devolver a pasta.** Pastas do `root` recebem `chown` pelo diálogo nativo do macOS e depois vão para a Lixeira. Nada é apagado como administrador.
-- **Proteção revalidada.** O que entrou como seguro e voltou a ser usado entre a análise e a limpeza fica.
+- Todo código que apaga alguma coisa mora num arquivo só, [`src/main/cleaner.js`](src/main/cleaner.js). Se alguém tentar apagar fora dele, o `npm run check` reprova antes de chegar no app.
+- A tela nunca manda caminho de pasta para o processo que apaga. Ela manda um id, e o processo principal procura o item na última análise.
+- Na hora de limpar, tudo é conferido de novo: se a pasta mudou, virou atalho ou o projeto voltou a ser usado, ele recusa e explica.
+- Os comandos vêm de uma lista fechada e rodam sem shell. Nada de concatenar texto em comando.
+- Pasta vai para a Lixeira. Apagar para sempre só acontece por comando oficial da ferramenta ou quando você esvazia a Lixeira.
+- Pasta criada com `sudo`: o macOS pede sua senha, o Respiro devolve a pasta para o seu usuário e só então manda para a Lixeira. Ele nunca apaga nada como administrador.
 
 </details>
 
 > [!TIP]
-> Ligue o **modo simular** em Ajustes (<kbd>⌘</kbd> <kbd>,</kbd>) para ver exatamente o que seria liberado sem tocar em nada.
+> Quer só olhar sem medo? Ligue o **modo simular** em Ajustes (<kbd>⌘</kbd> <kbd>,</kbd>). O fluxo inteiro roda e no final ele diz quanto liberaria, sem apagar um byte.
 
-## Instalação
+## Instalando
 
-1. Baixe o `.dmg` mais recente em [Releases](https://github.com/dzn7/respiro-app/releases/latest).
-2. Abra o arquivo e arraste o **Respiro** para **Aplicativos**.
-3. Abra o Respiro.
+1. Baixe o `.dmg` na [página de releases](https://github.com/dzn7/respiro-app/releases/latest).
+2. Abra e arraste o Respiro para Aplicativos.
+3. Abra o app.
 
 > [!WARNING]
-> O app ainda não é assinado nem notarizado pela Apple. Na primeira abertura o macOS bloqueia: vá em **Ajustes do Sistema › Privacidade e Segurança** e clique em **Abrir Mesmo Assim**.
+> Ainda não paguei a Apple para assinar o app, então na primeira vez o macOS vai bloquear. É só ir em **Ajustes do Sistema › Privacidade e Segurança** e clicar em **Abrir Mesmo Assim**.
 
 <details>
-<summary>Prefere o Terminal?</summary>
+<summary>Prefere resolver pelo Terminal?</summary>
 
 ```sh
 xattr -dr com.apple.quarantine /Applications/Respiro.app
@@ -150,41 +124,41 @@ xattr -dr com.apple.quarantine /Applications/Respiro.app
 
 </details>
 
-**Requisitos:** macOS em Apple Silicon. Para Intel, gere o build numa máquina Intel com `npm run release`.
+Por enquanto o build é para Apple Silicon. Tem Mac Intel? Clone o projeto e rode `npm run release` nele.
 
-### Permissões
+### Permissões, sem susto
 
-| Permissão | Para quê | Obrigatória? |
+| O macOS pode pedir | Para quê | Se você negar |
 |---|---|---|
-| Acesso Total ao Disco | medir a Lixeira e pastas protegidas pelo macOS | Não. Sem ela, só a Lixeira fica sem medida. |
-| Pastas Documentos, Mesa e Downloads | achar `node_modules` de projetos guardados ali | O macOS pergunta na primeira análise. |
-| Controlar o Finder | esvaziar a Lixeira quando você confirma | Só ao esvaziar. |
-| Senha de administrador | devolver ao seu usuário pastas criadas com `sudo` | Só para esses itens, uma vez por limpeza. |
+| Acesso Total ao Disco | medir a Lixeira | tudo funciona, só a Lixeira fica sem tamanho |
+| Acesso a Documentos, Mesa e Downloads | achar `node_modules` de projetos guardados ali | ele pula essas pastas |
+| Controlar o Finder | esvaziar a Lixeira quando você manda | a Lixeira fica como está |
+| Senha de administrador | devolver para você uma pasta criada com `sudo` | aquele item não é limpo e nada muda |
 
 ## Atalhos
 
-| Ação | Atalho |
+| Para | Aperte |
 |---|---|
-| Reanalisar | <kbd>⌘</kbd> <kbd>R</kbd> |
-| Ajustes | <kbd>⌘</kbd> <kbd>,</kbd> |
-| Histórico | <kbd>⌘</kbd> <kbd>Y</kbd> |
-| Voltar um passo / fechar o sheet | <kbd>Esc</kbd> |
-| Marcar ou desmarcar item | <kbd>Espaço</kbd> |
-| Navegar em listas, menus e filtros | <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> |
+| Analisar de novo | <kbd>⌘</kbd> <kbd>R</kbd> |
+| Abrir os Ajustes | <kbd>⌘</kbd> <kbd>,</kbd> |
+| Ver o histórico | <kbd>⌘</kbd> <kbd>Y</kbd> |
+| Voltar um passo ou fechar | <kbd>Esc</kbd> |
+| Marcar um item | <kbd>Espaço</kbd> |
+| Andar por listas, menus e filtros | <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> |
 
-Tudo funciona só com teclado e é lido pelo VoiceOver. A opção **Reduzir movimento** do macOS é respeitada desde a abertura.
+Dá para usar tudo só com teclado, o VoiceOver lê cada tela, e se o seu Mac está com "Reduzir movimento" ligado, o app para de animar.
 
 ## Privacidade
 
-Sem rede, sem conta, sem telemetria. A análise e o histórico ficam em `~/Library/Application Support/Respiro/respiro.json`. A fonte e os ícones vêm embarcados no app.
+Nada sai do seu Mac. Sem conta, sem rede, sem telemetria. O que ele guarda (última análise, histórico e preferências) fica em `~/Library/Application Support/Respiro/respiro.json`.
 
-## Perguntas frequentes
+## Perguntas que você talvez tenha
 
 <details>
-<summary><b>Limpei o pnpm store e o disco ganhou menos do que o app mostrou. Por quê?</b></summary>
+<summary><b>Limpei o pnpm e o disco ganhou bem menos do que o app mostrou. Bug?</b></summary>
 <br>
 
-No macOS, o pnpm (e o Bun) **clonam** arquivos do store para os `node_modules` usando o APFS: as duas cópias dividem os mesmos blocos. Apagar uma delas não devolve espaço enquanto a outra existir. Por isso o Respiro mostra dois números depois de limpar: o que a ferramenta removeu e quanto o espaço livre do disco aumentou de fato.
+Não. No Mac, o pnpm (e o Bun) **clonam** arquivos do store para dentro dos `node_modules` usando um truque do APFS: as duas cópias dividem o mesmo espaço físico. Apagar uma delas não libera nada enquanto a outra existir. Por isso o Respiro mostra dois números no fim: quanto a ferramenta removeu e quanto o disco ganhou de verdade. No meu teste, o `pnpm store prune` tirou 3,7 GB do store e o disco ganhou 0,16 GB.
 
 </details>
 
@@ -192,47 +166,45 @@ No macOS, o pnpm (e o Bun) **clonam** arquivos do store para os `node_modules` u
 <summary><b>Limpei o Docker e o espaço não voltou.</b></summary>
 <br>
 
-O Docker Desktop guarda tudo num disco virtual. O espaço é liberado dentro dele na hora e volta para o macOS alguns minutos depois.
+O Docker Desktop guarda tudo num disco virtual. O espaço é liberado lá dentro na hora e volta para o macOS alguns minutos depois. Paciência de um café.
 
 </details>
 
 <details>
-<summary><b>Mandei para a Lixeira e o espaço livre não mudou.</b></summary>
+<summary><b>Mandei coisa para a Lixeira e o espaço livre continuou igual.</b></summary>
 <br>
 
-É esperado: o espaço volta quando a Lixeira é esvaziada. A Lixeira aparece como categoria, com o botão "Esvaziar…".
+A Lixeira ainda ocupa espaço. Quando você tiver certeza, esvazie pela própria linha "Lixeira" no app.
 
 </details>
 
 <details>
-<summary><b>Posso limpar o node_modules de um projeto que estou usando?</b></summary>
+<summary><b>Posso apagar o node_modules de um projeto que estou usando?</b></summary>
 <br>
 
-Pode. Ele fica no grupo *Em uso*, desmarcado. Marque, confirme o aviso e rode `pnpm install` (ou `npm install`) quando voltar ao projeto. A pasta vai para a Lixeira, então dá para recuperar.
+Pode. Ele aparece em "Em uso", desmarcado. Marque, leia o aviso e confirme. Quando voltar ao projeto, é rodar `pnpm install` (ou `npm install`). Se mudar de ideia antes, a pasta está na Lixeira.
 
 </details>
 
 <details>
-<summary><b>Apareceu "Criado pelo administrador (sudo)". O que é isso?</b></summary>
+<summary><b>Apareceu "Criado pelo administrador (sudo)". Que isso?</b></summary>
 <br>
 
-Alguma ferramenta rodou com `sudo` e deixou a pasta com dono `root` (o `node-gyp` é o caso mais comum). Sem senha, ninguém consegue mover essa pasta. Ao limpar, o macOS pede sua senha uma vez, o Respiro devolve a pasta ao seu usuário com `chown` e então a manda para a Lixeira.
+Algum dia alguma ferramenta rodou com `sudo` e deixou a pasta com dono `root` (o `node-gyp` adora fazer isso). Sem senha ninguém mexe nela. Na hora de limpar, o macOS pede sua senha uma vez, o Respiro devolve a pasta para você e aí manda para a Lixeira.
 
 </details>
 
 <details>
-<summary><b>O "livre" é diferente do que o Finder mostra.</b></summary>
+<summary><b>Por que o espaço livre é diferente do que o Finder mostra?</b></summary>
 <br>
 
-O Finder soma o espaço "purgável" (que o macOS pode liberar sozinho). O Respiro mostra o espaço livre de fato, então o número pode sair um pouco menor.
+O Finder soma o espaço "purgável", que o macOS ainda pode liberar sozinho. O Respiro mostra só o que está livre agora, então o número dele pode ser um pouco menor.
 
 </details>
 
----
+## Para quem quer mexer no código
 
-## Desenvolvimento
-
-Electron 44 com JavaScript ESM checado por `tsc` via JSDoc: sem framework de interface, sem bundler, sem dependência em produção.
+É Electron com JavaScript puro, checado pelo TypeScript via JSDoc. Não tem framework de interface, não tem bundler e o app não carrega nenhuma dependência em produção.
 
 ```sh
 git clone https://github.com/dzn7/respiro-app.git
@@ -241,82 +213,76 @@ npm install
 npm start
 ```
 
-| Comando | O que faz |
+| Comando | Faz o quê |
 |---|---|
 | `npm start` | abre o app |
-| `npm run verify` | regras do projeto + typecheck + testes |
-| `npm run check` | Lucide, cores fora dos tokens, exclusão fora do `cleaner.js`, controles nativos, contraste |
+| `npm run verify` | roda as regras do projeto, o typecheck e os testes |
+| `npm run check` | reprova Lucide, cor fora dos tokens, exclusão fora do `cleaner.js`, controle nativo e contraste baixo |
 | `npm test` | testes com `node --test` |
-| `npm run icons` | regenera os ícones Phosphor usados |
-| `npm run shot -- --theme=dark --out=/tmp/tela.png` | captura da janela |
-| `npm run release` | `.app` e `.dmg` com janela de instalação em `dist/` |
+| `npm run shot -- --theme=dark --out=/tmp/tela.png` | tira um print da janela |
+| `npm run release` | gera o `.app` e o `.dmg` com a janela de instalação |
 
 <details>
-<summary><b>Estrutura</b></summary>
+<summary><b>Como as pastas estão organizadas</b></summary>
 
 ```
 src/
   main/
-    main.js            janela, menu, IPC
-    preload.cjs        ponte segura (window.respiro)
+    main.js            janela, menu e IPC
+    preload.cjs        a ponte entre a tela e o resto
     scan.js            roda as categorias em paralelo
     categories/*.js    uma categoria por arquivo, só leitura
-    cleaner.js         único lugar que apaga
-    sys.js             execFile, du, statfs, PATH do shell
-    store.js           última análise, histórico, preferências
+    cleaner.js         o único lugar que apaga
+    sys.js             du, statfs, processos
+    store.js           última análise, histórico e preferências
   renderer/
-    index.html · app.js · app.css
-    tokens.css         cor, tipo e movimento (fonte única)
-    controls.js        checkbox, switch, select, segmentado, menu, tooltip
-    motion.js          contagem de números, troca de telas, saída de itens
-    fonts/             Geist e Geist Mono embarcadas
+    index.html, app.js, app.css
+    tokens.css         cores, tipografia e tempos de animação
+    controls.js        checkbox, switch, select, menu e companhia
+    motion.js          número contando, troca de tela, item saindo
+    fonts/             Geist e Geist Mono
 test/                  node --test
-scripts/               check, hook, ícone, fundo do instalador, release
+scripts/               checagens, ícone, fundo do instalador e release
 ```
 
 </details>
 
 <details>
-<summary><b>Documentos do projeto</b></summary>
-
-- [`PRD.md`](PRD.md): problema, funcionalidades, critérios de aceite e as regras de segurança S1–S11.
-- [`UI.md`](UI.md): sistema de design (tokens, tipografia, componentes, movimento, instalador e acessibilidade).
-- [`AGENTS.md`](AGENTS.md): o essencial para agentes de código; skills do projeto em `.agents/skills/`.
-
-</details>
-
-<details>
-<summary><b>Adicionar uma nova categoria de cache</b></summary>
+<summary><b>Quero adicionar um cache novo (uv, Gradle, Cypress…)</b></summary>
 <br>
 
-Siga a skill [`respiro-categoria`](.agents/skills/respiro-categoria/SKILL.md): pesquise o comando oficial, escreva a categoria em `src/main/categories/` (só leitura), registre o comando ou a raiz da Lixeira em `cleaner.js` e cubra o parser e a proteção com teste. O checklist de segurança precisa fechar antes do merge.
+O passo a passo está na skill [`respiro-categoria`](.agents/skills/respiro-categoria/SKILL.md). Em resumo: descubra o comando oficial de limpeza da ferramenta, crie a categoria em `src/main/categories/` só lendo o disco, registre o comando em `cleaner.js` e escreva um teste para a parte de proteção. Tem um checklist de segurança no fim que precisa fechar inteiro.
 
 </details>
 
-## Roteiro
+Para entender as decisões: [`PRD.md`](PRD.md) explica o produto e as regras de segurança, [`UI.md`](UI.md) é o sistema de design inteiro e [`AGENTS.md`](AGENTS.md) é o resumo para quem programa com agentes.
 
-- [x] Análise de pacotes, Docker, `node_modules`, Xcode, Playwright, Homebrew, caches e Lixeira
+## O que vem por aí
+
+- [x] Pacotes, Docker, `node_modules`, Xcode, Playwright, Homebrew, caches e Lixeira
 - [x] Modo simular, histórico e ganho real medido
-- [x] Filtros, itens ignorados, aparência clara e escura
-- [x] Pastas do `root` com senha do macOS
-- [ ] Puppeteer, Cypress e cache do `uv`
-- [ ] `iOS DeviceSupport` antigos
-- [ ] Escolher pastas onde procurar projetos
-- [ ] Build universal (Apple Silicon e Intel), assinatura e notarização
+- [x] Filtros, itens ignorados, tema claro e escuro
+- [x] Pastas do `root` com a senha do macOS
+- [ ] Puppeteer, Cypress e o cache do `uv`
+- [ ] `iOS DeviceSupport` antigo
+- [ ] Escolher em quais pastas procurar projetos
+- [ ] Build para Intel, assinatura e notarização
+
+Sentiu falta de alguma ferramenta? [Abre uma issue](https://github.com/dzn7/respiro-app/issues) e me conta onde ela guarda o cache.
 
 ## Licença
 
 © 2026 Derick Mackenzie. Todos os direitos reservados.
 
-O código está público para consulta. Você pode ler o código e usar os binários oficiais de [Releases](https://github.com/dzn7/respiro-app/releases/latest) para uso pessoal. Copiar, modificar, redistribuir ou reaproveitar o código, o nome ou o ícone depende de autorização por escrito. Termos completos em [`LICENSE`](LICENSE).
+O código está aberto para leitura e o app é de graça para uso pessoal. Copiar, modificar, redistribuir ou usar o nome e o ícone em outro projeto precisa de autorização. Os detalhes estão em [`LICENSE`](LICENSE).
 
 ## Créditos
 
-- [Geist e Geist Mono](https://vercel.com/font), da Vercel, sob a SIL Open Font License 1.1 (licença em [`src/renderer/fonts`](src/renderer/fonts/LICENSE-Geist.txt)).
-- Ícones [Phosphor](https://phosphoricons.com), sob licença MIT (licença em [`src/renderer`](src/renderer/LICENSE-Phosphor.txt)).
+- Fontes [Geist e Geist Mono](https://vercel.com/font), da Vercel ([SIL OFL 1.1](src/renderer/fonts/LICENSE-Geist.txt)).
+- Ícones [Phosphor](https://phosphoricons.com) ([MIT](src/renderer/LICENSE-Phosphor.txt)).
 - [Electron](https://www.electronjs.org/).
 
 <div align="center">
 <br>
-<sub>Feito para quem prefere programar a procurar onde foram parar 40 GB.</sub>
+<sub>Se o Respiro te devolveu uns gigas, conta lá nas issues. Eu vou gostar de saber.</sub>
 </div>
