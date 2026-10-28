@@ -12,4 +12,6 @@ contextBridge.exposeInMainWorld('respiro', {
   onProgress: (/** @type {(p: unknown) => void} */ cb) => ipcRenderer.on('respiro:progress', (_e, p) => cb(p)),
   onCommand: (/** @type {(c: unknown) => void} */ cb) => ipcRenderer.on('respiro:command', (_e, c) => cb(c)),
   onCleanProgress: (/** @type {(e: unknown) => void} */ cb) => ipcRenderer.on('respiro:clean-progress', (_e, e) => cb(e)),
+  explore: (/** @type {string} */ kind, /** @type {string | undefined} */ id) => ipcRenderer.invoke('respiro:explore', kind, id),
+  onExploreProgress: (/** @type {(p: unknown) => void} */ cb) => ipcRenderer.on('respiro:explore-progress', (_e, p) => cb(p)),
 });

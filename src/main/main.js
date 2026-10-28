@@ -1,13 +1,15 @@
 // Janela, menu e IPC. O renderer só pede; quem decide e executa é o main.
 import { app, BrowserWindow, ipcMain, Menu, nativeTheme, shell } from 'electron';
 import { readdir } from 'node:fs/promises';
+import { basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TRASH } from './categories/trash.js';
 import { getLocale, msg, resolveLocale, setLocale, t } from '../shared/i18n.js';
 import { clean } from './cleaner.js';
 import { CATEGORIES, ORDER, scanCategories } from './scan.js';
 import * as store from './store.js';
-import { diskInfo, home, loadShellPath } from './sys.js';
+import { diskInfo, home, loadShellPath, tilde } from './sys.js';
+import * as explore from './explore.js';
 import { initIsland, island } from './island.js';
 import * as tray from './tray.js';
 
@@ -45,7 +47,7 @@ function createWindow() {
   win.webContents.on('will-navigate', (e) => e.preventDefault());
 }
 
-/** @param {'rescan' | 'preferences' | 'history' | 'show-cleaning'} command */
+/** @param {'rescan' | 'preferences' | 'history' | 'show-cleaning' | 'explore'} command */
 const send = (command) => () => win?.webContents.send('respiro:command', command);
 
 /** Abre (ou recria) a janela e volta ao Dock. */
@@ -99,6 +101,7 @@ function buildMenu() {
       { role: 'selectAll', label: t('menu.selectAll') },
     ] },
     { label: t('menu.view'), submenu: [
+      { label: t('menu.explore'), accelerator: 'Command+E', click: send('explore') },
       { label: t('menu.rescan'), accelerator: 'Command+R', click: send('rescan') },
       { label: t('menu.history'), accelerator: 'Command+Y', click: send('history') },
       { type: 'separator' },
@@ -185,9 +188,18 @@ function handle(channel, fn) {
   });
 }
 
-/** Resolve "categoria/item" na última análise. O renderer nunca manda caminho. @param {unknown} ref */
+/**
+ * Resolve "categoria/item" na última análise, ou "explore/<id>" no índice do Explorar. O renderer nunca manda caminho.
+ * @param {unknown} ref @returns {import('./cleaner.js').Target | null}
+ */
 function resolve(ref) {
   if (typeof ref !== 'string') return null;
+  if (ref.startsWith('explore/')) {
+    const id = ref.slice(8);
+    const e = explore.lookup(id);
+    return e && { ref, category: 'explore', item: { id, name: basename(e.path), detail: tilde(e.path), size: e.size, freeable: e.size, safe: false,
+      path: e.path, seen: e.seen, action: { kind: 'trash', path: e.path } } };
+  }
   const slash = ref.indexOf('/');
   const category = store.data.scan?.categories.find((c) => c.id === ref.slice(0, slash));
   const item = category?.items.find((i) => i.id === ref.slice(slash + 1));
@@ -230,6 +242,7 @@ async function cleanAndRecord(targets, force, progress) {
   const after = await diskInfo();
   result.free = after.free;
   for (const t of targets) if (t.item.path && result.done.includes(t.ref)) delete store.data.sizeCache[t.item.path];
+  for (const r of result.done) if (r.startsWith('explore/')) { explore.forget(r.slice(8)); explore.invalidate(); }
   if (!result.simulated) result.disk = after.free - freeBefore;
   // Em uso que passa sozinho: o Respiro tenta de novo no próximo tick.
   if (!result.simulated) {
@@ -343,6 +356,18 @@ function registerIpc() {
     return prefs;
   });
 
+  // Explorar só lê; o que a pessoa manda para a Lixeira volta pelo respiro:clean com refs "explore/<id>".
+  handle('respiro:explore', (/** @type {unknown} */ kind, /** @type {unknown} */ id) => {
+    const send = (/** @type {import('../types.js').ExploreProgress} */ p) => { if (win && !win.isDestroyed()) win.webContents.send('respiro:explore-progress', p); };
+    if (kind === 'home' || kind === 'apps' || kind === 'disk') {
+      return explore.mapScope(kind, (n) => send({ kind: 'count', n }), { cache: app.getPath('userData'), fresh: id === 'fresh' });
+    }
+    if (kind === 'dir' && typeof id === 'string') return explore.listDir(id);
+    if (kind === 'large') return explore.largeFiles();
+    if (kind === 'duplicates') return explore.duplicates((read, total) => send({ kind: 'read', read, total }));
+    throw new Error('error.invalidRequest');
+  });
+
   handle('respiro:background', (/** @type {unknown} */ on) => {
     background = on === true && cleaning;
     if (!background) island({ kind: 'hide' });
@@ -362,6 +387,8 @@ function registerIpc() {
 
 app.whenReady().then(async () => {
   store.load();
+  // Análise salva por versão antiga pode ter categoria que saiu (Homebrew foi para "Caches de pacotes").
+  if (store.data.scan) store.data.scan.categories = store.data.scan.categories.filter((c) => ORDER.includes(c.id));
   nativeTheme.themeSource = store.data.prefs.theme;
   applyLocale();
   registerIpc();

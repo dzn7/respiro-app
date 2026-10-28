@@ -43,13 +43,19 @@
   --cat-node: #2a9a76;
   --cat-xcode: #c99512;
   --cat-browsers: #c8648a;
-  --cat-homebrew: #5f8a2e;
+  --cat-backups: #5f8a2e;
   --cat-appcaches: #6a5cc4;
   --cat-trash: #c4473f;
   --on-category: #fffefb;
   --knob: #fffefb;
   --popover: #fffefb;
   --selection: rgb(180 85 47 / .12);
+  /* Tipos de arquivo do Explorar: validados (dataviz) sobre --canvas, nesta ordem. Pasta é neutra. */
+  --kind-media: #4a74b5;
+  --kind-image: #2f8f6f;
+  --kind-archive: #c27c1f;
+  --kind-app: #8a5fc0;
+  --kind-other: #c25a6e;
   /* Série do gráfico: validada (dataviz) contra --surface no claro e no escuro. */
   --chart-line: #b4552f;
   --chart-fill: rgb(180 85 47 / .10);
@@ -88,13 +94,18 @@
     --cat-node: #2f9f7c;
     --cat-xcode: #b98a10;
     --cat-browsers: #c86a8f;
-    --cat-homebrew: #6f9a3a;
+    --cat-backups: #6f9a3a;
     --cat-appcaches: #8679de;
     --cat-trash: #dc5e55;
     --on-category: #fffefb;
     --knob: #f2efe8;
     --popover: #3a3934;
     --selection: rgb(229 138 98 / .18);
+    --kind-media: #6b93d6;
+    --kind-image: #3fa883;
+    --kind-archive: #c08428;
+    --kind-app: #9a78d8;
+    --kind-other: #d06478;
     --chart-line: #d8774e;
     --chart-fill: rgb(216 119 78 / .14);
 

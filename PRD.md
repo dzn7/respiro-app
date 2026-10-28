@@ -14,11 +14,11 @@ Abrir o app e, em um segundo, ver quanto do disco está ocupado, o que ocupa e q
 
 ## O que o Respiro não faz
 
-- Não mapeia o disco inteiro (treemap, arquivos grandes, duplicados).
-- Não toca em documentos, fotos, código-fonte, configurações, Keychain, `~/.ssh`, `.env` nem em pastas do sistema.
-- Não desinstala apps, não limpa snapshots do Time Machine, backups de iPhone, Mail ou Fotos.
-- Não usa `sudo` no terminal nem apaga nada como root. A senha de administrador só aparece no diálogo do macOS para devolver ao usuário uma pasta criada com sudo (S11).
-- Não roda limpeza agendada nem fica na barra de menus.
+- Não escolhe sozinho arquivo pessoal: documento, foto, vídeo ou código só sai pelo Explorar, marcado um a um pela pessoa, e vai para a Lixeira (S14).
+- Não toca em Keychain, `~/.ssh`, `~/.gnupg`, iCloud Drive, bibliotecas do Fotos, da Música e do Mail, `.env` nem em pastas do sistema; fora da pasta pessoal o Explorar só mostra.
+- Não desinstala apps nem apaga o snapshot do sistema (`com.apple.os.update…`).
+- Não usa `sudo` no terminal nem apaga nada como root. A senha de administrador só aparece no diálogo do macOS (S11).
+- Não roda limpeza agendada.
 - Não envia dados para fora da máquina (sem telemetria, sem rede).
 
 ## Funcionalidades
@@ -35,12 +35,12 @@ Detecta o que existe na máquina. Categoria ausente não aparece.
 
 | Categoria | Origem | Como limpa |
 |---|---|---|
-| Caches de pacotes | pnpm store, metadados do pnpm, npm, yarn, bun, pip, uv, Go (módulos e build), Cargo (downloads, fontes, git), Gradle (cache e versões do wrapper), Maven, CocoaPods, pub (Dart/Flutter) | `pnpm store prune`, `npm cache clean --force`, `yarn cache clean`, `bun pm cache rm`, `pip3 cache purge`, `uv cache prune`, `go clean -modcache` / `-cache`, `pod cache clean --all`, `dart pub cache clean --force`; sem CLI (Cargo, Gradle, Maven, metadados do pnpm) vão para a Lixeira |
+| Caches de pacotes | pnpm store, metadados do pnpm, npm, yarn, bun, pip, uv, Go (módulos e build), Cargo (downloads, fontes, git), Gradle (cache e versões do wrapper), Maven, CocoaPods, pub (Dart/Flutter), Homebrew (downloads e versões antigas) | `brew cleanup --prune=all` (prévia com `-n`), `pnpm store prune`, `npm cache clean --force`, `yarn cache clean`, `bun pm cache rm`, `pip3 cache purge`, `uv cache prune`, `go clean -modcache` / `-cache`, `pod cache clean --all`, `dart pub cache clean --force`; sem CLI (Cargo, Gradle, Maven, metadados do pnpm) vão para a Lixeira |
 | Docker | containers parados, imagens sem uso, cache de build, volumes sem uso | `docker container rm`, `docker image rm`, `docker builder prune -a -f`, `docker volume rm` (um por vez); no Docker Desktop, "Devolver espaço ao macOS" roda `docker run --rm --privileged --pid=host docker/desktop-reclaim-space` |
 | Projetos | pastas geradas ao lado do arquivo do projeto (`node_modules`, `.next`, `.nuxt`, `.svelte-kit`, `.turbo`, `.parcel-cache`, `dist`, `build` com `package.json`; `target` com `Cargo.toml`; `.venv`/`venv` com `pyproject.toml`/`requirements.txt`) e worktrees do git, sob a pasta pessoal, parados há mais de 30 dias (ajustável) | Lixeira; `target` com `cargo clean --manifest-path`; worktree com `git worktree remove` (S12) |
 | Xcode e Android | DerivedData, simuladores indisponíveis, cache do Xcode, DeviceSupport antigo (fica o mais novo de cada aparelho), AVDs e system images do Android | Lixeira; simuladores com `xcrun simctl delete unavailable`; AVD com `avdmanager delete avd -n`; system image sem AVD com `sdkmanager --uninstall` |
 | Navegadores de teste | revisões do Playwright que nenhuma instalação usa; versões do Cypress e do Puppeteer (a mais nova fica em uso) | Lixeira (Playwright: mesma regra do coletor dele, `.links` + `browsers.json`) |
-| Homebrew | downloads em cache e versões antigas | `brew cleanup --prune=all` (prévia com `-n`) |
+| Backups e snapshots | snapshots locais do Time Machine (`tmutil listlocalsnapshots /`) e backups de iPhone/iPad em `~/Library/Application Support/MobileSync/Backup` | snapshot com `tmutil deletelocalsnapshots <data>` (sem tamanho antes: o macOS não informa); backup de aparelho vai para a Lixeira, um por vez, com aceite (o mais recente de cada aparelho avisa) |
 | Caches de apps e editores | `~/Library/Caches` e `~/Library/Logs` (sem `com.apple.*` e sem o que já está em outra categoria), versões obsoletas de extensões do VS Code, Insiders, Cursor e Windsurf (`.obsolete` fora do `extensions.json`), caches e logs de versões antigas das IDEs JetBrains | Lixeira |
 | Lixeira | `~/.Trash` | o Respiro apaga o que está dentro de `~/.Trash`, item por item, depois da confirmação individual (permanente; sem o Finder, que no macOS 26 falha com -10000) |
 
@@ -97,6 +97,14 @@ Sheet com cada item: nome, tamanho, data do último uso quando houver, e o motiv
 - Aceite: com a barra ligada, fechar a janela mantém o app rodando e o tira do Dock; abrir volta ao Dock.
 - Aceite: abaixo do limite escolhido, o anel fica colorido e o macOS recebe no máximo um aviso por dia.
 
+### P1 — Explorar
+Onde está o espaço além dos caches, numa página em tela cheia (⌘E): **Mapa**, **Arquivos grandes** e **Duplicados**.
+- Mapa: treemap da pasta atual (cor = tipo de arquivo, com legenda), trilha de pastas, Esc sobe um nível e a lista embaixo tem os mesmos itens para teclado e VoiceOver. Pasta pessoal e Aplicativos sem senha; "Disco inteiro" lê `/System/Volumes/Data` com a senha de administrador, só para ler. A leitura (`du -k -x -d 3`) fica guardada 6 h; "Ler de novo" refaz. Entrar numa pasta lê o nível de baixo com os arquivos de 1 MB para cima.
+- Arquivos grandes: 100 MB para cima na pasta pessoal, Aplicativos, `/Library` e `/Users/Shared` pelo Spotlight (sem ele, `find`), com busca e ordem por tamanho, data ou nome. Tamanho é o ocupado de verdade (arquivo esparso, como o `Docker.raw`, não infla).
+- Duplicados: 20 MB para cima na pasta pessoal (fora Biblioteca, dependências, `.git`, apps e discos de VM), por tamanho, depois cabeça e cauda, depois SHA-256 completo. Fica marcada para ficar a cópia mais antiga fora de Downloads e da Mesa; as outras vêm marcadas para a Lixeira e dá para trocar em cada grupo. Lê no máximo 50 GB por rodada.
+- Aceite: marcar → confirmação própria ("são arquivos seus") com aceite → a página de limpeza de sempre → resultado e histórico; "Voltar ao Explorar" mostra a tela sem o que saiu.
+- Aceite: o que a regra S14 não deixa aparece com cadeado e "Mostrar no Finder", sem caixa de marcar.
+
 ### P1 — Histórico
 - Aceite: lista de limpezas com data, total liberado e total enviado à Lixeira; soma acumulada.
 - Aceite: gráfico do espaço livre (30 dias, 90 dias, 1 ano) com ponto em cada limpeza, dica no hover e nas setas, tabela para leitor de tela. Amostra a cada 6 h e depois de cada limpeza; guarda um ano.
@@ -108,7 +116,7 @@ Sheet com cada item: nome, tamanho, data do último uso quando houver, e o motiv
 - Aceite: o app só pede quando a leitura de `~/.Trash` falha por permissão, explica por que e abre o painel certo dos Ajustes.
 
 ### P1 — Integração macOS
-Vibrancy, semáforos integrados à barra de título, fonte do sistema, claro e escuro automáticos, ⌘R reanalisa, ⌘, abre Preferências.
+Vibrancy, semáforos integrados à barra de título, fonte do sistema, claro e escuro automáticos, ⌘R reanalisa, ⌘E abre o Explorar, ⌘, abre Preferências.
 
 ### P2 — Depois
 Escolha de pastas para buscar projetos, assinatura e notarização (necessárias para a notificação do macOS chegar sempre), atualização automática.
@@ -125,9 +133,11 @@ S7. Nunca entram na seleção automática nem no total seguro: projetos com ativ
 S8. Volumes Docker podem ter bancos de dados: aparecem um a um, com aviso, e cada um exige confirmação individual. Nunca em lote.
 S9. Caches e logs de apps tocados nos últimos 7 dias são "atenção" (o app pode estar usando) e ficam fora do total seguro.
 S10. Proteção é revalidada no momento da limpeza, não só na análise: o que entrou como seguro e ficou ativo nesse meio-tempo não sai.
-S11. Senha de administrador só pelo diálogo nativo do macOS (`osascript … with administrator privileges`), uma vez por limpeza, só para `chown -R` de caminhos que passaram por `trashRule`, e só depois da confirmação. Nada é apagado como root.
+S11. Senha de administrador só pelo diálogo nativo do macOS (`osascript … with administrator privileges`), só depois da confirmação, para três usos: `chown -R` de caminhos que passaram por `trashRule` (uma vez por limpeza); `tmutil deletelocalsnapshots <data>` quando o tmutil exige root (comando da tabela, cada parte citada); e o `du` de leitura do "Disco inteiro" no Explorar. Nada é apagado como root.
 S12. Git só com `git -C <repositório principal> worktree remove <worktree>`, sem `--force`: o git recusa se houver mudança. Worktree travada ou com mudanças não tem ação. Nada que descarte trabalho (reset, clean, checkout, branch -D) entra na tabela. Worktree com `.env` avisa que arquivos ignorados saem junto e não vão para a Lixeira.
 S13. Em uso na hora de limpar não é erro: o item fica para depois (pasta aberta por um programa, projeto que voltou a ser usado, Xcode aberto, cache do uv preso por outro processo). O cache do uv volta para uma fila e o Respiro tenta de novo sozinho a cada 5 minutos, enquanto o app roda; `uv cache prune --force` só roda quando a pessoa lê o aviso e escolhe "Limpar mesmo assim".
+
+S14. Arquivo pessoal (Explorar) só vai para a Lixeira, só dentro da pasta pessoal, e só se ainda tiver o tamanho e a data de quando foi listado. Nunca: a pasta pessoal e as pastas principais dela (e as ocultas do primeiro nível), `~/Library` (iCloud Drive, Keychains, Mail, dados de apps), `~/.ssh`, `~/.gnupg`, `~/.Trash`, o que está dentro de `.git` ou de um `.app`, bibliotecas do Fotos, da Música e da TV, discos de máquina virtual (`Docker.raw`, `.vmdk`, `.qcow2`, `.vdi`, `.vhdx`). Nunca entra no "liberar com segurança" nem vem marcado, exceto as cópias extras de um duplicado. A confirmação tem aceite próprio.
 
 ## Limites conhecidos
 
@@ -136,6 +146,9 @@ S13. Em uso na hora de limpar não é erro: o item fica para depois (pasta abert
 - **Lixeira.** Item enviado à Lixeira só libera espaço quando ela é esvaziada.
 - **uv.** O cache do uv pode passar de 100 GB; `uv cache prune` tira só o que nenhum ambiente alcança, e o ganho real aparece depois. `.venv` criado pelo uv aparece sem valor previsto.
 - **Notificações.** App sem assinatura pode não receber notificação do macOS; o aviso de disco cheio também aparece no anel colorido da barra de menus.
+- **Mapa.** O `du` do macOS lê pasta por pasta: numa pasta pessoal de 300 GB, a primeira leitura levou de 5 a 8 minutos no QA (rodar em paralelo não ajudou). Por isso a leitura fica guardada 6 h e as outras abas funcionam enquanto isso. O mapa não mostra o volume do sistema nem o espaço purgável.
+- **Snapshots.** O macOS não informa o tamanho de um snapshot local antes de apagar; o ganho aparece medido no fim.
+- **Duplicados.** Clones do APFS contam como cópias, mas apagar um não devolve os blocos que o outro usa; o ganho real aparece medido no fim. Sem Spotlight, a busca usa `find` e demora mais.
 - **Espaço purgável.** O "livre" vem de `statfs` e não soma o espaço purgável que o Finder conta; pode sair menor que o do Finder.
 
 ## Métricas de sucesso

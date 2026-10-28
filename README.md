@@ -8,7 +8,7 @@ Seu Mac diz que o disco tá cheio e joga a culpa em "Dados do Sistema"?<br>
 O Respiro abre essa caixa-preta e devolve o espaço que seus projetos esqueceram para trás.
 
 [![macOS](https://img.shields.io/badge/macOS-Apple_Silicon-1f1e1b?style=flat-square&logo=apple&logoColor=white)](#instalando)
-[![Versão](https://img.shields.io/badge/versão-0.4.0-b4552f?style=flat-square)](https://github.com/dzn7/respiro-app/releases/latest)
+[![Versão](https://img.shields.io/badge/versão-0.5.0-b4552f?style=flat-square)](https://github.com/dzn7/respiro-app/releases/latest)
 [![Electron](https://img.shields.io/badge/Electron-44-2b2a27?style=flat-square&logo=electron&logoColor=9feaf9)](https://www.electronjs.org/)
 [![Sem telemetria](https://img.shields.io/badge/telemetria-zero-2f7a4f?style=flat-square)](#privacidade)
 [![Licença](https://img.shields.io/badge/licença-proprietária-1f1e1b?style=flat-square)](LICENSE)
@@ -71,18 +71,28 @@ Só aparece o que existe na sua máquina. Não usa Docker? A categoria nem mostr
 
 | | Onde mora | Como ele limpa |
 |---|---|---|
-| **Caches de pacotes** | pnpm, npm, Yarn, Bun, pip, uv, Go, Cargo, Gradle, Maven, CocoaPods, pub | o comando de cada um (`pnpm store prune`, `uv cache prune`, `go clean -modcache`, `pod cache clean --all`…); quem não tem comando vai para a Lixeira |
+| **Caches de pacotes** | pnpm, npm, Yarn, Bun, pip, uv, Go, Cargo, Gradle, Maven, CocoaPods, pub, Homebrew | o comando de cada um (`pnpm store prune`, `uv cache prune`, `go clean -modcache`, `brew cleanup --prune=all`…); quem não tem comando vai para a Lixeira |
 | **Docker** | containers parados, imagens sem uso, cache de build, volumes soltos | `docker container rm`, `docker image rm`, `docker builder prune`, volume só um de cada vez, e um botão para o Docker Desktop devolver o espaço ao macOS |
 | **Projetos** | `node_modules`, `.next`, `dist`, `target`, `.venv` e worktrees do git de projetos parados há mais de 30 dias (você ajusta) | Lixeira, `cargo clean` ou `git worktree remove` (sem `--force`: com mudança, o git recusa) |
 | **Xcode e Android** | DerivedData, simulador que não abre mais, cache, DeviceSupport antigo, emuladores e imagens do Android | Lixeira, `xcrun simctl delete unavailable`, `avdmanager`, `sdkmanager` |
 | **Navegadores de teste** | versões do Playwright, Cypress e Puppeteer que nenhum projeto usa | Lixeira, com a mesma regra que o Playwright usa |
-| **Homebrew** | instaladores baixados e versões antigas | `brew cleanup --prune=all` |
+| **Backups e snapshots** | snapshots locais do Time Machine e backups de iPhone/iPad guardados no Mac | `tmutil deletelocalsnapshots`; backup de aparelho vai para a Lixeira um de cada vez, avisando qual é o mais recente |
 | **Caches de apps e editores** | `~/Library/Caches`, `~/Library/Logs`, extensão velha do VS Code/Cursor/Windsurf, cache de IDE JetBrains antiga | Lixeira, e o que é da Apple ele nem toca |
 | **Lixeira** | `~/.Trash` | esvazia, mas só depois de você marcar "entendi" |
 
+## Explorar o disco inteiro
+
+Cache não é tudo. Aperte ⌘E (ou o ícone de blocos na barra) e o Respiro mostra para onde foi o resto:
+
+- **Mapa:** um treemap da pasta pessoal, dos Aplicativos ou do disco inteiro (esse pede a senha, só para ler). Clique numa pasta para entrar.
+- **Arquivos grandes:** tudo de 100 MB para cima, pelo Spotlight, com busca.
+- **Duplicados:** compara o conteúdo (não o nome) dos arquivos de 20 MB para cima. Em cada grupo fica a cópia mais antiga fora de Downloads e da Mesa.
+
+Arquivo seu nunca vem marcado sozinho (só as cópias extras de um duplicado). Você marca, confirma que são seus e eles vão para a Lixeira. Biblioteca, iCloud, chaves, `.git`, Fotos e discos de VM ficam com cadeado.
+
 ## "Tá, mas é seguro?"
 
-Pergunta justa. A resposta curta: ele não mexe em documento, foto, código, configuração nem nada que você criou. E não existe `rm` em lugar nenhum do código.
+Pergunta justa. A resposta curta: ele não mexe sozinho em documento, foto, código, configuração nem nada que você criou (no Explorar, só o que você marcar, e vai para a Lixeira). E só um arquivo do código apaga alguma coisa (`src/main/cleaner.js`); o `npm run check` reprova qualquer outro.
 
 A resposta longa é o jeito como ele separa as coisas:
 
@@ -272,6 +282,8 @@ Para entender as decisões: [`PRD.md`](PRD.md) explica o produto e as regras de 
 - [x] Puppeteer, Cypress, `iOS DeviceSupport`, Android, extensões de editor, JetBrains
 - [x] Português, inglês e espanhol
 - [x] Barra de menus com aviso de disco cheio, gráfico do espaço livre, boas-vindas
+- [x] Explorar: mapa do disco, arquivos grandes e duplicados
+- [x] Snapshots do Time Machine e backups de iPhone
 - [ ] Escolher em quais pastas procurar projetos
 - [ ] Build para Intel, assinatura e notarização
 

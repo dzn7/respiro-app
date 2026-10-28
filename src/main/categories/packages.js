@@ -1,8 +1,9 @@
-// pnpm, npm, yarn, bun, pip, uv, Go, Cargo, Gradle, Maven, CocoaPods e pub.
+// pnpm, npm, yarn, bun, pip, uv, Go, Cargo, Gradle, Maven, CocoaPods, pub e Homebrew.
 // Comando oficial sempre que a CLI existe; Lixeira quando a ferramenta não tem comando ou não está instalada.
 import { readdir } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { msg } from '../../shared/i18n.js';
+import { brewItem } from './homebrew.js';
 import { cachedSize, exists, has, home, measure, run, size, tilde } from '../sys.js';
 
 export const id = 'packages';
@@ -71,6 +72,8 @@ export async function scan(ctx) {
   }
 
   items.push(...(await otherTools()));
+  // Homebrew: já vem medido pela prévia oficial.
+  const brew = await brewItem();
 
   if (!items.length) return null;
   // O store do pnpm é o maior e só muda quando ganha ou perde pacote: reaproveita a medição anterior.
@@ -80,7 +83,8 @@ export async function scan(ctx) {
     // O uv regrava metadados a cada uso: a impressão digital muda sem o tamanho mudar. Remede a cada 6 h.
     i.size = await cachedSize(/** @type {string} */ (i.path), ctx.sizeCache, i.id === 'uv' ? uvSize : undefined, i.id === 'uv' ? 6 * 3_600_000 : 0);
   }));
-  return { items: await measure(items) };
+  const measured = await measure(items);
+  return { items: brew ? [...measured, brew] : measured };
 }
 
 /**

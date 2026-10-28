@@ -5,6 +5,7 @@ import { freeChart } from './chart.js';
 import { cleaningBusy, cleaningEvent, failCleaning, finishCleaning, openCleaning, reopenCleaning } from './cleaning.js';
 import { hero, ring } from './loader.js';
 import { openWelcome, refreshWelcome } from './welcome.js';
+import { openExplore } from './explore.js';
 import { countTo, leave, morph, swap } from './motion.js';
 
 /**
@@ -18,7 +19,7 @@ import { countTo, leave, morph, swap } from './motion.js';
 const api = window.respiro;
 const ICONS = /** @type {const} */ ({
   packages: 'package', docker: 'shipping-container', node: 'tree-structure', xcode: 'hammer',
-  browsers: 'browsers', homebrew: 'beer-stein', appcaches: 'stack', trash: 'trash',
+  browsers: 'browsers', backups: 'archive', appcaches: 'stack', trash: 'trash',
 });
 const ORDER = Object.keys(ICONS);
 
@@ -613,12 +614,13 @@ function applyResult(r, origin) {
 
 /**
  * Limpa com a tela de progresso: a janela inteira acompanha item por item e termina no resultado.
- * `force`: refs que a pessoa mandou limpar mesmo em uso (cache do uv).
+ * `force`: refs que a pessoa mandou limpar mesmo em uso (cache do uv). `extra`: botões a mais no fim (voltar ao Explorar).
  * @param {{ category: Category, item: Item, ref: string }[]} targets @param {string | null} origin @param {string[]} [force]
+ * @param {{ label: string, run: () => void }[]} [extra] @returns {Promise<CleanResult | null>}
  */
-async function runClean(targets, origin, force = []) {
+async function runClean(targets, origin, force = [], extra = []) {
   // Já tem uma limpeza rodando (talvez em segundo plano): mostra ela em vez de começar outra.
-  if (cleaningBusy()) { sheet.close(); reopenCleaning(); return; }
+  if (cleaningBusy()) { sheet.close(); reopenCleaning(); return null; }
   openCleaning({ simulate: state.prefs.simulate, free: state.disk?.free ?? 0, catName, status: cleanPill, background: (on) => api.cleaningBackground(on), jobs: targets.map((x) => ({ ref: x.ref, name: tx(x.item.name), category: x.category.id,
     trash: x.item.action?.kind === 'trash', command: x.item.command ? tx(x.item.command) : null, size: releases(x.item) })) });
   sheet.close();
@@ -630,12 +632,12 @@ async function runClean(targets, origin, force = []) {
   } catch (e) {
     const reason = String(/** @type {Error} */ (e).message).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
     failCleaning(has(reason) ? t(reason) : reason, settle);
-    return;
+    return null;
   }
   const before = applyResult(r, origin);
   const done = new Set(r.done);
   /** @type {{ label: string, run: () => void }[]} */
-  const actions = [];
+  const actions = [...extra];
   // Veio do detalhe e algo saiu: "Ver categoria" volta e mostra os itens saindo.
   if (before && origin && state.categories.get(origin)?.items.length) actions.push({ label: t('result.seeCategory'), run: () => openDetail(origin, { snapshot: before, leaving: done }) });
   // Limpou algo do Docker Desktop: o espaço só volta ao macOS depois da ferramenta de devolução.
@@ -646,6 +648,21 @@ async function runClean(targets, origin, force = []) {
   } });
   // Terminou em segundo plano: a lista já atualiza; o resultado fica guardado para a pílula do topo abrir.
   if (!byId('cleaning').hasAttribute('open')) settle();
+  return r;
+}
+
+/** Arquivos da pessoa no Explorar: categoria só de exibição na página de limpeza. */
+const EXPLORE = /** @type {Category} */ (/** @type {unknown} */ ({ id: 'explore', status: 'ok', size: 0, items: [] }));
+
+/** Explorar o disco; o que a pessoa manda para a Lixeira passa pela página de limpeza e volta para lá. */
+function explore() {
+  if (cleaningBusy()) { reopenCleaning(); return; }
+  sheet.close();
+  openExplore({
+    onTrash: (picks) => runClean(picks.map((p) => ({ ref: `explore/${p.id}`, category: EXPLORE,
+      item: { id: p.id, name: p.name, detail: p.path, size: p.size, freeable: p.size, safe: false, action: { kind: 'trash', path: p.path } } })),
+    null, [], [{ label: t('explore.backTo'), run: explore }]),
+  });
 }
 
 async function openPrefs() {
@@ -847,10 +864,13 @@ api.onCommand((command) => {
   if (command === 'rescan') rescan();
   else if (command === 'preferences') openPrefs();
   else if (command === 'history') openHistory();
+  else if (command === 'explore') explore();
   // Clique na pílula do topo: mostra a limpeza; se a janela é nova e não tem a página, o histórico.
   else if (command === 'show-cleaning' && !reopenCleaning()) openHistory();
 });
 
+byId('btn-explore').append(svg('squares-four', 18));
+byId('btn-explore').addEventListener('click', explore);
 byId('btn-history').append(svg('clock-counter-clockwise', 18));
 byId('btn-rescan').append(svg('arrow-clockwise', 18));
 byId('btn-prefs').append(svg('gear-six', 18));

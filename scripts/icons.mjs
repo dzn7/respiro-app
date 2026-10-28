@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const NAMES = [
   'package', 'shipping-container', 'tree-structure', 'hammer', 'browsers', 'beer-stein', 'stack', 'trash',
   'check-circle', 'warning', 'warning-octagon', 'lock-simple', 'arrow-clockwise', 'clock-counter-clockwise',
-  'gear-six', 'caret-right', 'folder-open', 'info', 'eye', 'hard-drives', 'check', 'caret-up-down', 'dots-three', 'copy', 'magnifying-glass', 'eye-slash', 'sun', 'moon', 'circle-half', 'terminal-window', 'shield-check', 'arrow-left',
+  'gear-six', 'caret-right', 'folder-open', 'info', 'eye', 'hard-drives', 'check', 'caret-up-down', 'dots-three', 'copy', 'magnifying-glass', 'eye-slash', 'sun', 'moon', 'circle-half', 'terminal-window', 'shield-check', 'arrow-left', 'archive', 'squares-four', 'file', 'copy-simple', 'magnifying-glass-plus', 'arrow-up-left',
 ];
 
 const root = fileURLToPath(new URL('..', import.meta.url));

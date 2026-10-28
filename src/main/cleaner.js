@@ -15,7 +15,7 @@ import { exists, home, parseSize, run, size } from './sys.js';
 /**
  * @typedef {import('../types.js').CommandKey} CommandKey
  * @typedef {import('../types.js').Item} Item
- * @typedef {{ ref: string, category: import('../types.js').CategoryId, item: Item }} Target
+ * @typedef {{ ref: string, category: import('../types.js').CategoryId | 'explore', item: Item }} Target
  * @typedef {import('../types.js').Msg} Msg
  */
 
@@ -25,7 +25,7 @@ const projectPath = (a) => isAbsolute(a) && normalize(a) === a && a.startsWith(`
 /**
  * Tabela fechada de comandos. Argumento extra só com validador (regex ou função).
  * `build` monta argumentos que dependem do disco (repositório da worktree).
- * @type {Record<CommandKey, { cmd: string, args: string[], arg?: RegExp | ((a: string) => boolean), build?: (a: string) => Promise<string[]>, measure?: true, env?: Record<string, string>, fn?: (onLine: (line: string) => void) => Promise<void> }>}
+ * @type {Record<CommandKey, { cmd: string, args: string[], arg?: RegExp | ((a: string) => boolean), build?: (a: string) => Promise<string[]>, measure?: true, env?: Record<string, string>, fn?: (onLine: (line: string) => void) => Promise<void>, admin?: true }>}
  */
 const COMMANDS = {
   'pnpm-prune': { cmd: 'pnpm', args: ['store', 'prune'], measure: true },
@@ -35,6 +35,8 @@ const COMMANDS = {
   'pip-purge': { cmd: 'pip3', args: ['cache', 'purge'], measure: true },
   // Com a trava presa por outro uv, desiste em 10 s em vez de esperar 5 min.
   'uv-prune': { cmd: 'uv', args: ['cache', 'prune'], env: { UV_LOCK_TIMEOUT: '10' } },
+  // Snapshot local do Time Machine pela data; se o tmutil exigir root, repete pelo diálogo de senha (adminCommand).
+  'tm-delete-snapshot': { cmd: '/usr/bin/tmutil', args: ['deletelocalsnapshots'], arg: /^\d{4}-\d{2}-\d{2}-\d{6}$/, admin: true },
   // Só quando a pessoa escolhe "Limpar mesmo assim" com o cache em uso: ignora a trava do uv.
   'uv-prune-force': { cmd: 'uv', args: ['cache', 'prune', '--force'] },
   'go-clean-modcache': { cmd: 'go', args: ['clean', '-modcache'], measure: true },
@@ -97,6 +99,8 @@ export function trashRule(path, h = home) {
     [PLAYWRIGHT, (n) => /^[a-z][a-z_]*-\d+$/.test(n), 'refuse.notPlaywright'],
     [join(lib, 'Caches/Cypress'), (n) => /^\d+\.\d+\.\d+/.test(n)],
     [join(lib, 'Caches/JetBrains'), any],
+    // Backup de iPhone/iPad: a pasta inteira do aparelho (nome = UDID, com ou sem data).
+    [join(lib, 'Application Support/MobileSync/Backup'), (n) => /^[0-9A-Fa-f-]{20,64}$/.test(n)],
     [join(lib, 'Logs/JetBrains'), any],
     ...['.vscode', '.vscode-insiders', '.cursor', '.windsurf'].map((d) => /** @type {[string, (n: string) => boolean]} */ ([join(h, d, 'extensions'), (n) => !n.startsWith('.')])),
   ];
@@ -116,6 +120,41 @@ export function trashRule(path, h = home) {
     return segments.slice(0, -1).some((s) => s === 'node_modules' || s.startsWith('.')) ? msg('refuse.nested') : null;
   }
   return msg('refuse.outside');
+}
+
+/** Pastas de primeiro nível da pasta pessoal que nunca saem inteiras. */
+const HOME_FOLDERS = new Set(['Applications', 'Desktop', 'Documents', 'Downloads', 'Library', 'Movies', 'Music', 'Pictures', 'Public', 'Sites']);
+
+/**
+ * Regra para arquivos e pastas da pessoa, vindos do Explorar (S14). Só Lixeira e só dentro da pasta pessoal.
+ * Fica: Biblioteca (iCloud, Keychains, Mail, dados de apps), chaves (.ssh, .gnupg), a Lixeira, as pastas principais,
+ * o que está dentro de repositório Git ou de app, bibliotecas do Fotos/Música e discos de máquina virtual.
+ * @param {string} path @param {string} [h] pasta pessoal @returns {Msg | null}
+ */
+export function personalRule(path, h = home) {
+  if (!isAbsolute(path) || normalize(path) !== path || path.endsWith(sep) || !path.startsWith(`${h}/`)) return msg('refuse.outsideHome');
+  const [top, ...rest] = path.slice(h.length + 1).split(sep);
+  if (['Library', '.ssh', '.gnupg', '.Trash'].includes(top) && rest.length) return msg('refuse.personalProtected');
+  if (!rest.length && (top.startsWith('.') || HOME_FOLDERS.has(top))) return msg('refuse.homeFolder');
+  if (/\/\.git\/|\.app\//.test(path)) return msg('refuse.personalProtected');
+  if (/\.(?:photoslibrary|musiclibrary|tvlibrary)(?:\/|$)/i.test(path)) return msg('refuse.mediaLibrary');
+  if (/\/Docker\.raw$|\.(?:vmdk|qcow2|vdi|vhdx)$/i.test(path)) return msg('refuse.vmDisk');
+  return null;
+}
+
+/**
+ * Arquivo da pessoa: a regra, e o arquivo precisa ser o mesmo de quando foi listado (tamanho e data).
+ * @param {string} path @param {Item['seen']} seen @returns {Promise<Msg | null>}
+ */
+async function canTrashPersonal(path, seen) {
+  const rule = personalRule(path);
+  if (rule) return rule;
+  const st = await lstat(path).catch(() => null);
+  if (!st) return msg('refuse.gone');
+  if (st.isSymbolicLink()) return msg('refuse.symlink');
+  if ((await realpath(path).catch(() => '')) !== path) return msg('refuse.throughLink');
+  if (seen && (st.size !== seen.bytes || Math.abs(st.mtimeMs - seen.mtime) > 1)) return msg('refuse.changed');
+  return null;
 }
 
 /** Checagens que dependem do disco agora. @param {string} path @returns {Promise<Msg | null>} */
@@ -155,6 +194,7 @@ export async function refuse({ category, item }, staleDays, forced = false) {
   const action = item.action;
   if (!action) return item.note ?? msg('refuse.protected');
   if (action.kind === 'trash') {
+    if (category === 'explore') return canTrashPersonal(action.path, item.seen);
     const why = await canTrash(action.path);
     if (why) return why;
     // Item em uso escolhido de propósito já foi avisado; a revalidação protege o que entrou como seguro.
@@ -176,16 +216,28 @@ export async function refuse({ category, item }, staleDays, forced = false) {
   return null;
 }
 
+/** Texto citado para AppleScript. @param {string} p */
+export const literal = (p) => `"${p.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+
 /**
  * AppleScript que devolve ao usuário pastas do root, com o diálogo de senha do macOS (uma vez para todas).
  * Só chown: nada é apagado como root. Caminhos já passaram por trashRule.
  * @param {string[]} paths @param {{ uid: number, gid: number }} [user]
  */
 export function adminScript(paths, user = userInfo()) {
-  const literal = (/** @type {string} */ p) => `"${p.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
   const args = paths.map((p) => `quoted form of ${literal(p)}`).join(' & " " & ');
   return `do shell script "/usr/sbin/chown -R ${user.uid}:${user.gid} " & ${args} with administrator privileges `
     + `with prompt ${literal(t('admin.prompt', { n: paths.length }))}`;
+}
+
+/**
+ * Um comando da tabela com senha de administrador, para o caso em que a ferramenta exige root (S11).
+ * Caminho absoluto do binário e argumentos já validados; cada um vai citado, nada de texto livre no shell.
+ * @param {string} cmd @param {string[]} args
+ */
+export function adminCommand(cmd, args) {
+  const parts = [cmd, ...args].map((p) => `quoted form of ${literal(p)}`).join(' & " " & ');
+  return `do shell script ${parts} with administrator privileges with prompt ${literal(t('admin.promptCommand'))}`;
 }
 
 /**
@@ -252,8 +304,13 @@ async function runCommand(item, onLine, force = false) {
   /** @type {string[]} */
   const tail = [];
   const tap = (/** @type {string} */ line) => { tail.push(line); if (tail.length > 40) tail.shift(); onLine?.(line); };
+  const args = await argv(key, action.arg);
   const out = spec.fn ? (await spec.fn(tap), '')
-    : await run(spec.cmd, await argv(key, action.arg), { timeout: 30 * 60_000, onLine: tap, env: spec.env });
+    : await run(spec.cmd, args, { timeout: 30 * 60_000, onLine: tap, env: spec.env }).catch(async (/** @type {any} */ e) => {
+      // Comando marcado como admin que pediu root: mesmo comando, mesmos argumentos validados, pelo diálogo do macOS.
+      if (!spec.admin || !/root|privileg|not permitted|permission/i.test(`${e?.message} ${e?.stderr}`)) throw e;
+      return run('/usr/bin/osascript', ['-e', adminCommand(spec.cmd, args)], { timeout: 180_000 });
+    });
   const reported = reportedFreed(`${out}\n${tail.join('\n')}`, action.key);
   if (reported !== null) return reported;
   if (before !== null && item.path) return Math.max(0, before - (await size(item.path)));

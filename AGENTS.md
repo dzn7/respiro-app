@@ -13,6 +13,7 @@ src/main/island.js        pílula do topo (estilo Dynamic Island) com island.cjs
 src/main/preload.cjs      ponte segura (window.respiro)
 src/main/scan.js          roda as categorias e o disco
 src/main/categories/*.js  uma categoria por arquivo (só leitura)
+src/main/explore.js       Explorar: mapa (du), arquivos grandes (Spotlight), duplicados; só lê
 src/main/cleaner.js       ÚNICO lugar que apaga: Lixeira e comandos oficiais
 src/main/sys.js           execFile, du, statfs, PATH do shell
 src/main/store.js         cache da análise, histórico, amostras do espaço livre, preferências
@@ -24,6 +25,7 @@ src/renderer/welcome.js   boas-vindas do primeiro uso
 src/renderer/chart.js     gráfico do espaço livre no Histórico
 src/renderer/controls.js  checkbox, switch, select, menu, tooltip, disclosure (sem controle nativo)
 src/renderer/motion.js    countTo, swap, leave, morph (tempos vêm dos tokens)
+src/renderer/explore.js   página Explorar; treemap.js tem as contas puras (squarify, tipo do arquivo)
 src/renderer/fonts/       Geist e Geist Mono embarcadas (OFL)
 test/                     node --test
 scripts/check.mjs         regras do projeto (Lucide, cores, exclusão, contraste)
@@ -39,7 +41,7 @@ scripts/dmg-background.js fundo Retina do instalador
 - `npm run release` — `.app` e `.dmg` em `dist/`
 
 ## Regras inegociáveis
-1. Apagar só via `src/main/cleaner.js` (Lixeira ou comando oficial da tabela). Nunca `rm`, `unlink`, `trashItem` ou comando de limpeza fora dele. Regras S1–S12 no `PRD.md`.
+1. Apagar só via `src/main/cleaner.js` (Lixeira ou comando oficial da tabela). Nunca `rm`, `unlink`, `trashItem` ou comando de limpeza fora dele. Regras S1–S14 no `PRD.md` (arquivo pessoal do Explorar: S14).
 2. Renderer nunca envia caminho nem comando ao main; só ids de item.
 3. Categoria nova segue a skill `respiro-categoria` (checklist de segurança + teste).
 4. Tela nova ou ajuste visual segue `UI.md` e a skill `respiro-tela`. Cor, tipo e tempo só por token de `tokens.css`. Ícone só Phosphor. Lucide e controles nativos (`input`, `select`, `details`) proibidos: use `controls.js`.

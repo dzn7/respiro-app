@@ -69,11 +69,25 @@ Ordem fixa (a cor segue a categoria, nunca a posição no ranking). A barra dese
 | 3 | node_modules | `--cat-node` | `#2a9a76` | `#2f9f7c` | `tree-structure` |
 | 4 | Xcode | `--cat-xcode` | `#c99512` | `#b98a10` | `hammer` |
 | 5 | Navegadores de teste | `--cat-browsers` | `#c8648a` | `#c86a8f` | `browsers` |
-| 6 | Homebrew | `--cat-homebrew` | `#5f8a2e` | `#6f9a3a` | `beer-stein` |
+| 6 | Backups e snapshots | `--cat-backups` | `#5f8a2e` | `#6f9a3a` | `archive` |
 | 7 | Caches e logs de apps | `--cat-appcaches` | `#6a5cc4` | `#8679de` | `stack` |
 | 8 | Lixeira | `--cat-trash` | `#c4473f` | `#dc5e55` | `trash` |
 
-Categoria nova entra no fim da ordem e precisa revalidar a paleta. Nona categoria não ganha cor nova: agrupa em uma existente.
+Categoria nova entra no fim da ordem e precisa revalidar a paleta. Nona categoria não ganha cor nova: agrupa em uma existente. (Homebrew entrou em "Caches de pacotes" para "Backups e snapshots" herdar a cor 6.)
+
+### Tipos de arquivo (Explorar)
+
+Só no treemap e na lista do Explorar, sempre com legenda e nome do tipo na linha. Pasta e "Outros arquivos" são neutras (`--segment-system`). Validado com `validate_palette.js` da skill `dataviz` nesta ordem (claro sobre `#f7f5ef`, escuro sobre `#262522`): todas as checagens passam.
+
+| Tipo | Token | Claro | Escuro |
+|---|---|---|---|
+| Vídeo ou áudio | `--kind-media` | `#4a74b5` | `#6b93d6` |
+| Imagem | `--kind-image` | `#2f8f6f` | `#3fa883` |
+| Compactado ou imagem de disco | `--kind-archive` | `#c27c1f` | `#c08428` |
+| App | `--kind-app` | `#8a5fc0` | `#9a78d8` |
+| Arquivo | `--kind-other` | `#c25a6e` | `#d06478` |
+
+O bloco do treemap usa a cor só num fio de 2 px no topo e num fundo de 26 % sobre `--surface` (40 % no hover de pasta); o texto fica em `--text`.
 
 ### Tipografia
 
@@ -115,7 +129,7 @@ Phosphor Icons, peso **regular**, SVG inline gerado por `npm run icons` a partir
 |---|---|---|
 | Glifo branco no quadrado colorido da categoria (28 px; 32 px no sheet) | ver tabela de categorias | 16 |
 | Linha, botão com texto, estado, item de menu | — | 14–16 |
-| Botão só ícone da barra de título | `clock-counter-clockwise`, `arrow-clockwise`, `gear-six` | 18 |
+| Botão só ícone da barra de título | `squares-four`, `clock-counter-clockwise`, `arrow-clockwise`, `gear-six` | 18 |
 | Menu de ações do item | `dots-three` → `folder-open`, `copy` | 16 / 14 |
 | Select | `caret-up-down` | 12 |
 | Disclosure e chevron da linha | `caret-right` | 12 |
@@ -276,6 +290,16 @@ Estados: hover, pressionado (brilho −6 %), foco visível, ocupado ("Liberando�
 - Em uso na hora (pasta aberta, projeto voltou a ser usado, cache do uv preso): cadeado neutro, "para depois" e o motivo; trecho da barra cinza. Não é erro.
 - Cache do uv em uso: bloco discreto (superfície, fio de 0,5 px) "O cache do uv está em uso", com quem segura o cache e as duas saídas: "Deixar para depois" (o Respiro tenta sozinho) e "Limpar mesmo assim" (roda `--force` numa nova página de limpeza). Nenhuma das duas é o botão principal.
 - No fim, na mesma página: frase de resumo, notas (Lixeira, diferença do APFS, Docker) e os botões ("Ver categoria", "Devolver espaço ao macOS", "Concluir"). Esc só fecha depois de terminar (barrado já no teclado; se fechar por outro caminho, a página volta).
+
+### Explorar (`explore.js`, `treemap.js`)
+- Botão `squares-four` na barra de título e ⌘E. Página inteira como a da limpeza (`<dialog>` com fundo `--canvas`), coluna de 760 px: título 22/28, frase de apoio, segmentado **Mapa · Arquivos grandes · Duplicados**, conteúdo e um rodapé fixo ("2 itens marcados · 3,1 GB", Fechar, Revisar).
+- **Mapa:** segmentado Pasta pessoal · Aplicativos · Disco inteiro, "Lido há 2 horas" e "Ler de novo". Trilha de pastas (botões, a atual em 600) com o tamanho à direita. Treemap squarified de 200–380 px de altura, até 60 blocos (o resto vira "Outros arquivos"), 2 px de espaço entre blocos, nome e tamanho só onde cabem (72 × 36 px), dica com nome e tamanho. Clique numa pasta entra; Esc sobe. Embaixo, a legenda dos tipos presentes e a lista com os mesmos itens (o treemap é `aria-hidden`; teclado e VoiceOver usam a lista).
+- "Disco inteiro" começa parado, com a explicação da senha e "Mapear o disco inteiro"; nada fora da pasta pessoal ganha caixa de marcar.
+- Linha (`.x-row`): caixa de marcar (ou cadeado neutro com a dica "Fica: …"), ponto do tipo, nome em 500, "Tipo · modificado em … · ~/caminho" (caminho em mono), tamanho e "Mostrar no Finder". Pasta abre com o botão da linha (chevron à direita).
+- **Arquivos grandes:** busca e segmentado Tamanho · Mais antigos · Nome.
+- **Duplicados:** começa parado (explicação e "Procurar duplicados"); lendo, anel e "3,2 GB de 10 GB comparados"; depois um grupo por conteúdo com "3 cópias de x" e "1,2 GB cada · libera 2,4 GB". A cópia que fica leva o selo "Fica"; as outras vêm marcadas e têm "Manter esta".
+- Revisar troca o conteúdo pela confirmação na mesma página: "Mover 3 itens para a Lixeira?", a lista e, no rodapé, o aceite "Entendi: são arquivos meus." antes de liberar o botão. Depois vem a página de limpeza de sempre, com "Voltar ao Explorar".
+- Carregando: anel de 16 px e o que está sendo lido ("1.200 pastas lidas"). Erro: aviso `--attention` com "Tentar de novo". Vazio: uma frase em `--text-secondary`.
 
 ### Segundo plano e pílula do topo (`island.js`)
 - Na página da limpeza, "Continuar em segundo plano" (secundário, ao lado da dica) fecha a página e a limpeza segue no main. Na barra de título aparece a pílula "Limpando 2 de 5" com o anel de 12 px; o clique reabre a página.

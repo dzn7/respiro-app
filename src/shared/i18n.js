@@ -78,6 +78,7 @@ function formatParam(value, fmt) {
   if (fmt === 'date') return new Intl.DateTimeFormat(current, { day: 'numeric', month: 'short', year: 'numeric' }).format(Number(value));
   if (fmt === 'ago') return formatAgo(Number(value));
   if (fmt === 'since') return formatUpdated(Number(value));
+  if (fmt === 'datetime') return formatDateTime(Number(value));
   return String(value);
 }
 

@@ -1,8 +1,8 @@
 // Roda as categorias em paralelo e avisa cada uma que termina. Ordem fixa = ordem das cores (UI.md).
 import * as appCaches from './categories/app-caches.js';
+import * as backups from './categories/backups.js';
 import * as browsers from './categories/browsers.js';
 import * as docker from './categories/docker.js';
-import * as homebrew from './categories/homebrew.js';
 import * as nodeModules from './categories/node-modules.js';
 import * as packages from './categories/packages.js';
 import * as trash from './categories/trash.js';
@@ -18,7 +18,7 @@ import { movable } from './sys.js';
  */
 
 /** @type {CategoryModule[]} */
-export const CATEGORIES = [packages, docker, nodeModules, xcode, browsers, homebrew, appCaches, trash];
+export const CATEGORIES = [packages, docker, nodeModules, xcode, browsers, backups, appCaches, trash];
 export const ORDER = CATEGORIES.map((c) => c.id);
 
 /** @param {import('../types.js').Item} i */

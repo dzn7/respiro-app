@@ -31,10 +31,10 @@ button { font: inherit; letter-spacing: inherit; color: inherit; cursor: default
 [data-cat="node"] { --c: var(--cat-node); }
 [data-cat="xcode"] { --c: var(--cat-xcode); }
 [data-cat="browsers"] { --c: var(--cat-browsers); }
-[data-cat="homebrew"] { --c: var(--cat-homebrew); }
+[data-cat="backups"] { --c: var(--cat-backups); }
 [data-cat="appcaches"] { --c: var(--cat-appcaches); }
 [data-cat="trash"] { --c: var(--cat-trash); }
-[data-cat="system"] { --c: var(--segment-system); }
+[data-cat="system"], [data-cat="explore"] { --c: var(--segment-system); }
 [data-cat="free"] { --c: var(--surface-sunken); }
 
 /* ---------- Barra de título ---------- */
@@ -910,3 +910,84 @@ dialog.cleaning::backdrop { background: var(--canvas); }
 .clean-ask-title { display: flex; align-items: center; gap: var(--space-2); margin: 0; font: var(--type-headline); }
 .clean-ask-text { margin: 0; font: var(--type-callout); color: var(--text-secondary); text-wrap: pretty; }
 .clean-ask-actions { display: flex; gap: var(--space-2); justify-content: flex-end; }
+
+/* ---------- Explorar ----------
+   Mesma página calma da limpeza, mais larga: título, abas, e o conteúdo da aba. O mapa é um treemap da pasta atual
+   (cor = tipo, com legenda; a lista embaixo tem os mesmos itens para teclado e VoiceOver). */
+[data-kind="folder"], [data-kind="rest"] { --k: var(--segment-system); }
+[data-kind="media"] { --k: var(--kind-media); }
+[data-kind="image"] { --k: var(--kind-image); }
+[data-kind="archive"] { --k: var(--kind-archive); }
+[data-kind="app"] { --k: var(--kind-app); }
+[data-kind="other"] { --k: var(--kind-other); }
+
+.x-doc { display: flex; flex-direction: column; width: min(760px, 100%); min-height: 0; margin: 0 auto; padding: 52px var(--space-8) 0; }
+.x-head { display: grid; gap: var(--space-2); padding-bottom: var(--space-4); }
+.x-title { margin: 0; font: var(--type-title); font-size: 22px; line-height: 28px; letter-spacing: var(--track-title); }
+.x-subtitle { margin: 0 0 var(--space-2); font: var(--type-body); color: var(--text-secondary); }
+.x-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-3); padding-bottom: var(--space-8);
+  animation: fade-in var(--dur-state) var(--ease-out); }
+.x-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.x-tools .search { flex: 1; min-width: 180px; }
+.x-state { display: grid; justify-items: start; gap: var(--space-3); padding: var(--space-6) 0; }
+.x-loading { display: flex; align-items: center; gap: var(--space-2); margin: 0; font: var(--type-headline); color: var(--text-secondary); }
+.x-progress { font: var(--type-callout); color: var(--text-secondary); }
+.x-explain { max-width: 60ch; margin: 0; font: var(--type-body); color: var(--text-secondary); text-wrap: pretty; }
+.x-empty { margin: 0; padding: var(--space-4) 0; font: var(--type-body); color: var(--text-secondary); list-style: none; }
+
+.x-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; color: var(--text-secondary); }
+.x-crumb { padding: 2px 6px; border: 0; border-radius: var(--radius-control); background: none; color: inherit; font: var(--type-callout); }
+.x-crumb:hover { background: var(--surface-hover); color: var(--text); }
+.x-crumb[aria-current] { color: var(--text); font-weight: 600; }
+.x-crumb-size { margin-left: auto; font: var(--type-callout); color: var(--text); font-variant-numeric: tabular-nums; }
+
+.treemap { position: relative; flex: none; height: clamp(200px, 38vh, 380px); overflow: hidden; border-radius: var(--radius-group); background: var(--surface-sunken); }
+.tm-tile {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 6px 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--k) 26%, var(--surface));
+  box-shadow: inset 0 2px 0 var(--k);
+  font: var(--type-footnote);
+  transition: background-color var(--dur-response) var(--ease-out);
+}
+.tm-tile[data-kind="folder"]:hover, .tm-tile[data-kind="app"]:hover { background: color-mix(in oklab, var(--k) 40%, var(--surface)); }
+.tm-tile[data-kind="rest"] { background: var(--surface); box-shadow: inset 0 0 0 .5px var(--separator); color: var(--text-secondary); }
+.tm-name { overflow: hidden; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.tm-size { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.x-legend { min-height: 0; margin: 0; }
+.x-swatch { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 2.5px; background: var(--k); }
+
+.x-list { margin: 0; padding: 0; list-style: none; border-top: .5px solid var(--separator); }
+.x-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto auto; align-items: center; gap: var(--space-3); min-height: 44px; padding: 6px 0;
+  border-bottom: .5px solid var(--separator); }
+.x-row.plain { grid-template-columns: minmax(0, 1fr) auto; }
+.x-text { display: grid; min-width: 0; }
+.x-name { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; font: var(--type-body); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.x-meta { overflow: hidden; font: var(--type-callout); color: var(--text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+.x-meta .mono { font: var(--type-mono); }
+.x-open { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: 0; border: 0; background: none; color: inherit; text-align: left; }
+.x-open .x-text { flex: 1; }
+.x-open > svg { flex: none; color: var(--text-secondary); }
+.x-open:hover .x-name { color: var(--accent); }
+.x-size { font: var(--type-callout); color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.x-lock { display: grid; place-items: center; width: 18px; height: 18px; color: var(--text-secondary); }
+.x-row > .badge { justify-self: start; }
+.x-group { display: grid; gap: var(--space-1); }
+.x-group .group-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); }
+.x-group .group-heading .x-meta { font: var(--type-footnote); }
+
+.x-foot { display: flex; align-items: center; gap: var(--space-2); width: min(760px, 100%); min-height: 72px; margin: 0 auto;
+  padding: var(--space-4) var(--space-8) var(--space-6); border-top: .5px solid var(--separator); }
+.x-foot .spacer { flex: 1; }
+.x-foot .confirm-check { margin: 0; font: var(--type-body); }
+.x-picked { flex: 1; margin: 0; font: var(--type-callout); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .x-body, .tm-tile { animation: none; transition: none; }
+}
+.x-at { margin-left: auto; font: var(--type-callout); color: var(--text-secondary); }

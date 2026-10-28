@@ -33,7 +33,7 @@ const [appDir] = await packager({
   dir: root, out: join(root, 'dist'), overwrite: true, platform: 'darwin', arch, prune: true, asar: true,
   name: productName, appBundleId: 'br.com.thalena.respiro', appVersion: version, appCategoryType: 'public.app-category.utilities',
   icon: join(root, 'build/icon.icns'), darwinDarkModeSupport: true,
-  ignore: [/^\/(dist|build|docs|test|scripts|node_modules|\.agents|\.claude)(\/|$)/, /\.md$/, /^\/(tsconfig\.json|\.gitignore|logo\.jpg|package-lock\.json)$/],
+  ignore: [/^\/(dist|build|docs|test|scripts|node_modules|linkedin|\.agents|\.claude)(\/|$)/, /\.md$/, /^\/(tsconfig\.json|\.gitignore|logo\.jpg|package-lock\.json)$/],
   extendInfo: {
     NSDocumentsFolderUsageDescription: why,
     NSDesktopFolderUsageDescription: why,

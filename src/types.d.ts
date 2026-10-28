@@ -5,14 +5,14 @@ export interface Msg { key: string; params?: Record<string, unknown> }
 /** Dado (nome de pasta, de imagem) fica string; frase do app é Msg. */
 export type Text = string | Msg;
 
-export type CategoryId = 'packages' | 'docker' | 'node' | 'xcode' | 'browsers' | 'homebrew' | 'appcaches' | 'trash';
+export type CategoryId = 'packages' | 'docker' | 'node' | 'xcode' | 'browsers' | 'backups' | 'appcaches' | 'trash';
 
 export type CommandKey =
   | 'pnpm-prune' | 'npm-clean' | 'yarn-clean' | 'bun-clean' | 'pip-purge' | 'brew-cleanup'
   | 'docker-builder-prune' | 'docker-rm-container' | 'docker-rm-image' | 'docker-volume-rm'
   | 'simctl-delete-unavailable' | 'empty-trash'
   | 'uv-prune' | 'go-clean-modcache' | 'go-clean-cache' | 'pod-cache-clean' | 'dart-pub-cache-clean'
-  | 'cargo-clean' | 'git-worktree-remove' | 'avd-delete' | 'sdk-uninstall' | 'docker-reclaim' | 'uv-prune-force';
+  | 'cargo-clean' | 'git-worktree-remove' | 'avd-delete' | 'sdk-uninstall' | 'docker-reclaim' | 'uv-prune-force' | 'tm-delete-snapshot';
 
 /** null = protegido: aparece, mas não pode ser limpo. */
 export type Action = { kind: 'trash'; path: string } | { kind: 'cmd'; key: CommandKey; arg?: string } | null;
@@ -45,6 +45,8 @@ export interface Item {
   parts?: { name: string; size: number }[];
   /** comando oficial, para mostrar na confirmação */
   command?: Text;
+  /** arquivo do Explorar como foi listado: só sai se ainda tiver este tamanho e data (S14) */
+  seen?: { bytes: number; mtime: number };
   action: Action;
 }
 
@@ -138,6 +140,23 @@ export interface State { disk: Disk; scan: Scan | null; history: HistoryEntry[];
 
 export type Progress = { done: number; total: number; category?: Category; absent?: CategoryId; finished?: Scan };
 
+/** Pasta ou arquivo do mapa. `id` vira o ref "explore/<id>"; `path` é só para mostrar ("~/…"); `trashable` = a regra S14 deixa ir para a Lixeira. */
+export interface ExploreNode {
+  id: string; path: string; name: string; size: number; dir: boolean; mtime?: number; trashable?: boolean;
+  children?: ExploreNode[];
+  /** só na raiz do mapa: quando o du leu (a leitura fica guardada por 6 h) */
+  at?: number;
+  /** só no main, antes do índice */
+  seen?: { bytes: number; mtime: number };
+}
+
+export interface ExploreFile { id: string; path: string; name: string; size: number; mtime: number; trashable: boolean }
+
+/** Cópias com o mesmo conteúdo; `keep` marca a que fica (a mais antiga fora de Downloads e da Mesa). */
+export interface DuplicateGroup { size: number; copies: (ExploreFile & { keep: boolean })[] }
+
+export type ExploreProgress = { kind: 'count'; n: number } | { kind: 'read'; read: number; total: number };
+
 export interface RespiroApi {
   state(): Promise<State>;
   scan(): Promise<Scan>;
@@ -146,9 +165,14 @@ export interface RespiroApi {
   reveal(ref: string): Promise<void>;
   open(target: 'full-disk-access' | 'docker'): Promise<void>;
   onProgress(cb: (p: Progress) => void): void;
-  onCommand(cb: (command: 'rescan' | 'preferences' | 'history' | 'show-cleaning') => void): void;
+  onCommand(cb: (command: 'rescan' | 'preferences' | 'history' | 'show-cleaning' | 'explore') => void): void;
   cleaningBackground(on: boolean): Promise<void>;
   onCleanProgress(cb: (e: CleanEvent) => void): void;
+  explore(kind: 'home' | 'apps' | 'disk', fresh?: 'fresh'): Promise<ExploreNode | null>;
+  explore(kind: 'dir', id: string): Promise<ExploreNode | null>;
+  explore(kind: 'large'): Promise<ExploreFile[]>;
+  explore(kind: 'duplicates'): Promise<DuplicateGroup[]>;
+  onExploreProgress(cb: (p: ExploreProgress) => void): void;
 }
 
 declare global {
