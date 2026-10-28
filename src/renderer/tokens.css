@@ -1,0 +1,179 @@
+/* Tokens do Respiro. Única fonte de cor, tipo e movimento do app (UI.md › Tokens). */
+
+/* Geist e Geist Mono (Vercel, SIL OFL 1.1, v1.7.2), embarcadas: sem rede. */
+@font-face {
+  font-family: "Geist";
+  src: url("fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: block;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("fonts/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: block;
+}
+
+:root {
+  color-scheme: light dark;
+
+  --canvas: #f7f5ef;
+  --canvas-tint: rgb(247 245 239 / .82);
+  --surface: #fffefb;
+  --surface-sunken: #ece9e1;
+  --surface-hover: rgb(31 30 27 / .05);
+  --surface-pressed: rgb(31 30 27 / .09);
+  --separator: rgb(31 30 27 / .10);
+  --control-border: rgb(31 30 27 / .14);
+  --text: #1f1e1b;
+  --text-secondary: #6b675e;
+  --accent: #b4552f;
+  --accent-hover: #9f4927;
+  --on-accent: #fffefb;
+  --focus-ring: rgb(180 85 47 / .55);
+  --segment-system: #b9b4a8;
+  --backdrop: rgb(31 30 27 / .18);
+
+  --safe: #2f7a4f;
+  --attention: #8a5a00;
+  --danger: #b3261e;
+
+  --cat-packages: #3d72b8;
+  --cat-docker: #d0702e;
+  --cat-node: #2a9a76;
+  --cat-xcode: #c99512;
+  --cat-browsers: #c8648a;
+  --cat-homebrew: #5f8a2e;
+  --cat-appcaches: #6a5cc4;
+  --cat-trash: #c4473f;
+  --on-category: #fffefb;
+  --knob: #fffefb;
+  --popover: #fffefb;
+  --selection: rgb(180 85 47 / .12);
+
+  --shadow-control: 0 .5px 1px rgb(0 0 0 / .08);
+  --shadow-sheet: 0 24px 64px -12px rgb(0 0 0 / .28), 0 0 0 .5px rgb(0 0 0 / .12);
+  --shadow-popover: 0 10px 32px -8px rgb(0 0 0 / .22), 0 0 0 .5px rgb(0 0 0 / .14);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #262522;
+    --canvas-tint: rgb(38 37 34 / .82);
+    --surface: #302f2b;
+    --surface-sunken: #3a3934;
+    --surface-hover: rgb(242 239 232 / .06);
+    --surface-pressed: rgb(242 239 232 / .10);
+    --separator: rgb(242 239 232 / .10);
+    --control-border: rgb(242 239 232 / .14);
+    --text: #f2efe8;
+    --text-secondary: #a8a397;
+    --accent: #e58a62;
+    --accent-hover: #ec9b77;
+    --on-accent: #1f1e1b;
+    --focus-ring: rgb(229 138 98 / .6);
+    --segment-system: #6e6a61;
+    --backdrop: rgb(0 0 0 / .35);
+
+    --safe: #7fbf95;
+    --attention: #e0b25a;
+    --danger: #f08c80;
+
+    --cat-packages: #5a8fd6;
+    --cat-docker: #d0702e;
+    --cat-node: #2f9f7c;
+    --cat-xcode: #b98a10;
+    --cat-browsers: #c86a8f;
+    --cat-homebrew: #6f9a3a;
+    --cat-appcaches: #8679de;
+    --cat-trash: #dc5e55;
+    --on-category: #fffefb;
+    --knob: #f2efe8;
+    --popover: #3a3934;
+    --selection: rgb(229 138 98 / .18);
+
+    --shadow-control: 0 .5px 1px rgb(0 0 0 / .3);
+    --shadow-sheet: 0 24px 64px -12px rgb(0 0 0 / .5), 0 0 0 .5px rgb(255 255 255 / .1);
+    --shadow-popover: 0 10px 32px -8px rgb(0 0 0 / .55), 0 0 0 .5px rgb(255 255 255 / .12);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root { --canvas-tint: var(--canvas); }
+}
+
+@media (prefers-contrast: more) {
+  :root { --separator: var(--control-border); --control-border: var(--text-secondary); }
+}
+
+:root {
+  --font: "Geist", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  --type-display: 600 34px/40px var(--font);
+  --type-title: 600 17px/22px var(--font);
+  --type-headline: 550 13px/18px var(--font);
+  --type-body: 400 13px/19px var(--font);
+  --type-callout: 400 12px/16px var(--font);
+  --type-footnote: 450 11px/14px var(--font);
+  --type-mono: 400 11px/15px var(--font-mono);
+  --track-display: -0.04em;
+  --track-title: -0.02em;
+  --track-headline: -0.006em;
+  --track-body: -0.003em;
+  --track-small: 0.008em;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  --radius-control: 6px;
+  --radius-check: 4.5px;
+  --radius-group: 10px;
+  --radius-popover: 9px;
+  --radius-sheet: 12px;
+  --radius-bar: 5px;
+  --radius-icon: 6px;
+  --radius-pill: 999px;
+
+  --layer-titlebar: 10;
+  --layer-sheet: 40;
+  --layer-popover: 45;
+  --layer-toast: 50;
+
+  /* Movimento: curto, sem quique. Durações em ms viram 0 ou só opacidade com movimento reduzido. */
+  --dur-response: 120ms;
+  --dur-state: 220ms;
+  --dur-enter: 320ms;
+  --dur-exit: 160ms;
+  --dur-collapse: 240ms;
+  --dur-number: 700ms;
+  --dur-tooltip-delay: 450ms;
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(.65, 0, .35, 1);
+  --ease-sheet: cubic-bezier(.32, .72, 0, 1);
+  --distance-sheet: 10px;
+  --distance-item: 6px;
+  --scale-sheet: .985;
+  --scale-popover: .97;
+}
+
+/* Reduzir movimento: nada se desloca, cresce ou conta; trocas de estado viram fades curtos. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-enter: 0ms;
+    --dur-collapse: 0ms;
+    --dur-number: 0ms;
+    --dur-state: 120ms;
+    --dur-exit: 100ms;
+    --distance-sheet: 0px;
+    --distance-item: 0px;
+    --scale-sheet: 1;
+    --scale-popover: 1;
+  }
+}

@@ -1,0 +1,52 @@
+Respiro — Licença de Uso Proprietária
+Copyright (c) 2026 Derick Mackenzie. Todos os direitos reservados.
+
+Este repositório e todo o seu conteúdo (código-fonte, documentação, sistema de
+design, ícone, o nome "Respiro" e os binários publicados) são propriedade
+exclusiva do titular acima. O código está visível publicamente apenas para
+consulta.
+
+1. O QUE É PERMITIDO
+   a) Ler o código-fonte neste repositório.
+   b) Baixar e usar, para fins pessoais e não comerciais, os binários oficiais
+      publicados na página de Releases deste repositório.
+
+2. O QUE NÃO É PERMITIDO SEM AUTORIZAÇÃO PRÉVIA E POR ESCRITO DO TITULAR
+   a) Copiar, modificar, adaptar, traduzir ou criar obras derivadas do código,
+      do design ou da documentação.
+   b) Distribuir, sublicenciar, vender, alugar ou publicar o software, no todo
+      ou em parte, inclusive versões modificadas ou compiladas por terceiros.
+   c) Usar o código, o nome "Respiro" ou o ícone em outro produto ou serviço.
+   d) Remover ou alterar avisos de direitos autorais ou desta licença.
+
+3. CONTRIBUIÇÕES
+   Ao enviar uma issue, sugestão ou pull request, você concede ao titular uma
+   licença perpétua, irrevogável, mundial e gratuita para usar, modificar e
+   distribuir essa contribuição como parte do Respiro, e declara ter o direito
+   de concedê-la.
+
+4. COMPONENTES DE TERCEIROS
+   Componentes de terceiros mantêm as próprias licenças, que prevalecem sobre
+   esta para eles:
+   - Geist e Geist Mono (Vercel): SIL Open Font License 1.1 —
+     src/renderer/fonts/LICENSE-Geist.txt
+   - Phosphor Icons: MIT — src/renderer/LICENSE-Phosphor.txt
+   - Electron e demais dependências: licenças indicadas em cada pacote.
+
+5. ISENÇÃO DE GARANTIA
+   O SOFTWARE É FORNECIDO "COMO ESTÁ", SEM GARANTIA DE QUALQUER TIPO, EXPRESSA
+   OU IMPLÍCITA. EM NENHUMA HIPÓTESE O TITULAR SERÁ RESPONSÁVEL POR DANOS,
+   PERDA DE DADOS OU QUALQUER OUTRA RESPONSABILIDADE DECORRENTE DO USO DO
+   SOFTWARE.
+
+Pedidos de autorização: abra uma issue em https://github.com/dzn7/respiro-app.
+
+--------------------------------------------------------------------------------
+English summary (the Portuguese text above prevails)
+
+Copyright (c) 2026 Derick Mackenzie. All rights reserved. The source code is
+publicly visible for reference only. You may read it and use the official
+release binaries for personal, non-commercial purposes. Copying, modifying,
+redistributing, selling or reusing the code, name or icon requires prior
+written permission. Third-party components keep their own licenses. Provided
+"as is", without warranty of any kind.

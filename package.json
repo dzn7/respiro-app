@@ -1,0 +1,33 @@
+{
+  "name": "respiro",
+  "productName": "Respiro",
+  "version": "0.2.0",
+  "description": "Mostra o uso do disco e libera caches de desenvolvimento com segurança.",
+  "author": "Derick Mackenzie",
+  "license": "UNLICENSED",
+  "homepage": "https://github.com/dzn7/respiro-app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dzn7/respiro-app.git"
+  },
+  "private": true,
+  "type": "module",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "check": "node scripts/check.mjs",
+    "typecheck": "tsc -p .",
+    "test": "node --test \"test/*.test.js\"",
+    "verify": "npm run check && npm run typecheck && npm test",
+    "icons": "node scripts/icons.mjs",
+    "shot": "electron scripts/shot.js",
+    "release": "node scripts/release.mjs"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "@phosphor-icons/core": "2.1.1",
+    "@types/node": "24.19.2",
+    "electron": "44.7.1",
+    "typescript": "6.0.3"
+  }
+}
