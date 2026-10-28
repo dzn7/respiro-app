@@ -12,36 +12,38 @@
   <header class="titlebar" id="titlebar">
     <span class="titlebar-title">Respiro</span>
     <div class="titlebar-actions">
-      <button class="sim-pill" id="sim-pill" type="button" hidden>Modo simular</button>
-      <button class="icon-button" id="btn-history" type="button" aria-label="Histórico" data-tip="Histórico  ⌘Y"></button>
-      <button class="icon-button" id="btn-rescan" type="button" aria-label="Reanalisar" data-tip="Reanalisar  ⌘R"></button>
-      <button class="icon-button" id="btn-prefs" type="button" aria-label="Ajustes" data-tip="Ajustes  ⌘,"></button>
+      <div class="progress" id="progress" role="progressbar" data-i18n-attr="aria-label:progress.label" aria-valuemin="0"></div>
+      <button class="sim-pill" id="sim-pill" type="button" hidden><span data-i18n="titlebar.simPill"></span></button>
+      <button class="icon-button" id="btn-history" type="button" data-i18n-attr="aria-label:titlebar.history,data-tip:titlebar.historyTip"></button>
+      <button class="icon-button" id="btn-rescan" type="button" data-i18n-attr="aria-label:titlebar.rescan,data-tip:titlebar.rescanTip"></button>
+      <button class="icon-button" id="btn-prefs" type="button" data-i18n-attr="aria-label:titlebar.prefs,data-tip:titlebar.prefsTip"></button>
     </div>
-    <div class="progress" id="progress" role="progressbar" aria-label="Progresso da análise" aria-valuemin="0"><span></span></div>
   </header>
 
   <main class="content" id="content">
     <section class="disk" aria-labelledby="disk-summary">
       <p class="disk-name" id="disk-name"></p>
-      <h1 class="disk-summary" id="disk-summary"><span class="num" id="disk-free"></span> livres<span class="of" id="disk-total"></span></h1>
+      <h1 class="disk-summary" id="disk-summary"><span class="num" id="disk-free"></span> <span data-i18n="disk.freeWord"></span><span class="of" id="disk-total"></span></h1>
       <div class="bar" id="bar" role="img"></div>
       <ul class="legend" id="legend"></ul>
     </section>
 
     <section class="safe" aria-labelledby="safe-label">
-      <div>
-        <p class="safe-label" id="safe-label">Pode ser liberado com segurança</p>
+      <div class="safe-loader" id="safe-loader" hidden></div>
+      <div id="safe-text">
+        <p class="safe-label" id="safe-label" data-i18n="safe.label"></p>
         <p class="safe-value num" id="safe-value"></p>
         <p class="safe-note" id="safe-note"></p>
       </div>
-      <button class="button primary" id="btn-free" type="button" hidden>Revisar e liberar…</button>
+      <button class="button primary" id="btn-free" type="button" hidden></button>
     </section>
 
-    <ul class="group" id="categories" aria-label="Categorias"></ul>
+    <ul class="group" id="categories" data-i18n-attr="aria-label:list.label"></ul>
     <p class="footer" id="footer"></p>
   </main>
 
   <dialog class="sheet" id="sheet"></dialog>
+  <dialog class="welcome" id="welcome" aria-labelledby="welcome-title"></dialog>
   <p class="sr-only" id="announce" aria-live="polite"></p>
 </body>
 </html>

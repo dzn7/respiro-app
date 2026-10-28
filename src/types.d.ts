@@ -1,19 +1,27 @@
 // Contrato entre main e renderer. Tudo que cruza o IPC é JSON destes tipos.
 
+/** Texto traduzível: chave do dicionário (src/shared/locales) e parâmetros. */
+export interface Msg { key: string; params?: Record<string, unknown> }
+/** Dado (nome de pasta, de imagem) fica string; frase do app é Msg. */
+export type Text = string | Msg;
+
 export type CategoryId = 'packages' | 'docker' | 'node' | 'xcode' | 'browsers' | 'homebrew' | 'appcaches' | 'trash';
 
 export type CommandKey =
   | 'pnpm-prune' | 'npm-clean' | 'yarn-clean' | 'bun-clean' | 'pip-purge' | 'brew-cleanup'
   | 'docker-builder-prune' | 'docker-rm-container' | 'docker-rm-image' | 'docker-volume-rm'
-  | 'simctl-delete-unavailable' | 'empty-trash';
+  | 'simctl-delete-unavailable' | 'empty-trash'
+  | 'uv-prune' | 'go-clean-modcache' | 'go-clean-cache' | 'pod-cache-clean' | 'dart-pub-cache-clean'
+  | 'cargo-clean' | 'git-worktree-remove' | 'avd-delete' | 'sdk-uninstall' | 'docker-reclaim';
 
 /** null = protegido: aparece, mas não pode ser limpo. */
 export type Action = { kind: 'trash'; path: string } | { kind: 'cmd'; key: CommandKey; arg?: string } | null;
 
 export interface Item {
   id: string;
-  name: string;
-  detail?: string;
+  /** nome de pasta/imagem (string) ou nome fixo do app (Msg) */
+  name: Text;
+  detail?: Text;
   /** bytes ocupados */
   size: number;
   /** bytes que a limpeza devolve; null = a ferramenta só sabe depois */
@@ -21,12 +29,14 @@ export interface Item {
   /** entra no total seguro e vem marcado */
   safe: boolean;
   /** motivo de atenção ou proteção */
-  note?: string;
+  note?: Msg;
   lastUsed?: number;
   /** pasta real, para "Mostrar no Finder" e para medir antes/depois */
   path?: string;
   /** exige confirmação individual e não vai para a Lixeira (volume Docker, esvaziar Lixeira) */
   individual?: boolean;
+  /** Ação da categoria (ex.: devolver espaço do Docker Desktop): não entra na lista nem nas contagens. */
+  tool?: boolean;
   /** pasta do root (criada com sudo): a limpeza pede a senha do macOS para devolvê-la ao usuário */
   admin?: boolean;
   /** em uso agora (projeto ativo, app ou Xcode aberto…): limpável só por escolha explícita, nunca vem marcado */
@@ -34,19 +44,18 @@ export interface Item {
   /** partes que o comando oficial remove juntas (só exibição) */
   parts?: { name: string; size: number }[];
   /** comando oficial, para mostrar na confirmação */
-  command?: string;
+  command?: Text;
   action: Action;
 }
 
 export type CategoryStatus = 'ok' | 'unavailable' | 'needs-access' | 'error';
 
+/** Nome e descrição vêm do dicionário pelo id (cat.<id>.name, cat.<id>.blurb). */
 export interface Category {
   id: CategoryId;
-  name: string;
-  blurb: string;
   status: CategoryStatus;
-  message?: string;
-  notice?: string;
+  message?: Msg;
+  notice?: Msg;
   size: number;
   items: Item[];
 }
@@ -64,9 +73,15 @@ export interface ScanContext {
 
 export interface Disk { name: string; total: number; free: number }
 
+/** Espaço livre num momento, para o gráfico do histórico. */
+export interface Sample { at: number; free: number; total: number }
+
 export interface Scan { at: number; ms: number; categories: Category[] }
 
+/** category guarda o id; versões antigas guardavam o nome em português. */
 export interface IgnoredItem { ref: string; name: string; category: string }
+
+export type LocalePref = 'system' | 'pt-BR' | 'en' | 'es';
 
 export type Theme = 'system' | 'light' | 'dark';
 
@@ -76,6 +91,14 @@ export interface Prefs {
   theme: Theme;
   scanOnLaunch: boolean;
   ignored: IgnoredItem[];
+  locale: LocalePref;
+  /** Já viu as boas-vindas. */
+  onboarded: boolean;
+  /** Ícone na barra de menus; fechar a janela mantém o app rodando. */
+  showInMenuBar: boolean;
+  openAtLogin: boolean;
+  /** Avisar quando o livre cair abaixo desta porcentagem (0 = desligado). */
+  lowDiskAlert: 0 | 10 | 15 | 20;
 }
 
 export interface CleanResult {
@@ -85,7 +108,7 @@ export interface CleanResult {
   /** itens limpos cujo ganho a ferramenta não informa */
   unknown: number;
   done: string[];
-  failed: { ref: string; name: string; message: string }[];
+  failed: { ref: string; name: Text; message: Msg }[];
   docker: boolean;
   /** quanto o espaço livre do disco mudou (statfs antes/depois); 0 na simulação */
   disk: number;
@@ -93,9 +116,9 @@ export interface CleanResult {
 
 export interface HistoryEntry { at: number; freed: number; trashed: number; count: number; disk?: number }
 
-export interface State { disk: Disk; scan: Scan | null; history: HistoryEntry[]; prefs: Prefs; scanning: boolean; fullDiskAccess: boolean;
+export interface State { disk: Disk; scan: Scan | null; history: HistoryEntry[]; samples: Sample[]; prefs: Prefs; scanning: boolean; fullDiskAccess: boolean;
   /** categorias que a análise procura, na ordem fixa (para o estado de carregamento) */
-  catalog: { id: CategoryId; name: string }[] }
+  catalog: { id: CategoryId }[] }
 
 export type Progress = { done: number; total: number; category?: Category; absent?: CategoryId; finished?: Scan };
 

@@ -85,16 +85,11 @@ button { font: inherit; letter-spacing: inherit; color: inherit; cursor: default
   font-weight: 500;
 }
 
-/* Progresso real da análise: linha fina que avança e some quando termina. */
-.progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; opacity: 0; transition: opacity var(--dur-state) var(--ease-out); }
-.progress[data-active] { opacity: 1; }
-.progress span {
-  display: block;
-  height: 100%;
-  width: var(--p, 0%);
-  background: var(--accent);
-  transition: width var(--dur-enter) var(--ease-out);
-}
+/* Progresso real da análise: o anel da marca ao lado dos botões, o arco cresce com as categorias prontas. */
+.progress { display: grid; place-items: center; width: 0; height: 28px; opacity: 0; overflow: hidden; transition: width var(--dur-state) var(--ease-out), opacity var(--dur-state) var(--ease-out); }
+.progress[data-active] { width: 22px; opacity: 1; }
+.progress .ring-track { display: inline; stroke: var(--separator); }
+.progress .ring-arc { stroke-dasharray: var(--p, 6) 100; animation: none; transition: stroke-dasharray var(--dur-enter) var(--ease-out); }
 
 /* ---------- Conteúdo ---------- */
 .content { flex: 1; overflow-y: auto; padding: var(--space-4) var(--space-8) var(--space-10); }
@@ -227,30 +222,43 @@ button { font: inherit; letter-spacing: inherit; color: inherit; cursor: default
 .row.checklist.absent .cat-icon { opacity: .2; filter: grayscale(1); }
 .row.checklist .row-sub, .row.checklist .row-size { transition: opacity var(--dur-state) var(--ease-out); }
 
-/* Indicador de análise: único movimento em loop do app, e só enquanto ela existe. */
-.spinner {
-  width: 11px;
-  height: 11px;
-  flex: none;
-  border-radius: 50%;
-  border: 1.5px solid var(--separator);
-  border-top-color: var(--text-secondary);
-  animation: spin 900ms linear infinite;
-}
-@keyframes spin { to { rotate: 1turn; } }
+/* ---------- Marca em movimento ----------
+   Único movimento em loop do app, e só enquanto algo carrega: o anel gira devagar e o arco abre e fecha (respira).
+   pathLength 100: arco de 89 com abertura de 11, girado para a abertura ficar à direita como no ícone. */
+.ring { flex: none; overflow: visible; animation: ring-spin 2400ms linear var(--phase, 0ms) infinite; }
+.ring circle { fill: none; stroke-width: 6.5; stroke-linecap: round; transform-box: view-box; transform-origin: 24px 24px; rotate: 20deg; }
+.ring-track { display: none; }
+.ring-arc { stroke: var(--accent); stroke-dasharray: 89 100; animation: ring-breathe 1200ms var(--ease-in-out) var(--phase, 0ms) infinite alternate; }
+@keyframes ring-spin { to { rotate: 1turn; } }
+@keyframes ring-breathe { to { stroke-dasharray: 54 100; stroke-dashoffset: -16; } }
 
-/* Lugar do número antes de ele existir: mesma altura do display, respira de leve. */
-.skeleton {
-  display: inline-block;
-  width: 168px;
-  height: 30px;
-  margin-top: 5px;
-  border-radius: var(--radius-control);
-  background: var(--surface-sunken);
-  animation: breathe 1.4s var(--ease-in-out) infinite alternate;
+/* Abertura: o anel se forma girando, passa um pouco do tamanho e assenta; depois abre espaço para o nome. */
+.loader-hero { display: flex; align-items: center; min-height: 48px; }
+.loader-hero .ring { animation: ring-in 900ms var(--ease-out) both, ring-spin 2400ms linear 900ms infinite; }
+.loader-hero .ring-arc { animation: ring-draw 900ms var(--ease-out) both, ring-breathe 1200ms var(--ease-in-out) 1500ms infinite alternate; }
+.loader-words {
+  display: grid;
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  animation: words-open 700ms var(--ease-out) 650ms forwards;
 }
-@keyframes breathe { to { opacity: .45; } }
-@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+.loader-name { font: var(--type-title); font-size: 20px; letter-spacing: var(--track-display); animation: wipe 600ms var(--ease-out) 750ms both; }
+.loader-text { font: var(--type-callout); color: var(--text-secondary); animation: rise-in 500ms var(--ease-out) 1000ms both; }
+@keyframes ring-in { from { scale: .35; rotate: -150deg; opacity: 0; } 60% { scale: 1.1; opacity: 1; } to { scale: 1; rotate: 0deg; } }
+@keyframes ring-draw { from { stroke-dasharray: 0 100; } to { stroke-dasharray: 89 100; } }
+@keyframes words-open { to { max-width: 32em; padding-left: var(--space-3); } }
+@keyframes wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+@keyframes rise-in { from { opacity: 0; translate: 0 4px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ring, .ring-arc, .loader-hero .ring, .loader-hero .ring-arc, .loader-name, .loader-text { animation: none; }
+  .loader-words { animation: none; max-width: none; padding-left: var(--space-3); }
+}
+
+/* Primeira análise: a marca ocupa o lugar do número que ainda não existe. */
+.safe-loader { align-self: center; }
+
 
 .badge {
   display: inline-flex;
@@ -621,3 +629,174 @@ dialog.sheet[open]::backdrop { opacity: 1; transition-duration: var(--dur-state)
 .ignored-name .item-meta { display: block; }
 .empty-line { color: var(--text-secondary); font: var(--type-callout); }
 .notice.tone-attention { color: var(--attention); }
+
+/* ---------- Boas-vindas (primeiro uso) ----------
+   Tela cheia sobre a janela, cinco passos. A arte de cada passo é feita com o anel da marca e os ícones do app. */
+dialog.welcome {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--canvas);
+  color: var(--text);
+}
+dialog.welcome[open] { display: grid; grid-template-rows: minmax(0, 1fr) auto; animation: rise-in var(--dur-enter) var(--ease-out); }
+dialog.welcome::backdrop { background: var(--canvas); }
+.welcome-drag { position: absolute; inset: 0 0 auto; height: 44px; -webkit-app-region: drag; }
+.welcome-skip { position: absolute; top: 10px; right: 14px; z-index: 1; }
+.welcome-stage { display: grid; align-items: safe center; justify-items: center; overflow-y: auto; padding: 52px var(--space-8) var(--space-2); }
+.welcome-page { width: min(460px, 100%); display: grid; justify-items: center; gap: var(--space-3); text-align: center; }
+.welcome-page > * { animation: rise-in 520ms var(--ease-out) both; }
+.welcome-page > :nth-child(2) { animation-delay: 140ms; }
+.welcome-page > :nth-child(3) { animation-delay: 220ms; }
+.welcome-page > :nth-child(4) { animation-delay: 300ms; }
+.welcome-art { display: grid; place-items: center; min-height: 136px; margin-bottom: var(--space-4); animation: none; }
+.welcome-art > * { grid-area: 1 / 1; }
+.welcome-glow {
+  width: 240px;
+  height: 240px;
+  margin: -60px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--accent-glow), transparent);
+  animation: glow 4800ms var(--ease-in-out) infinite alternate;
+}
+@keyframes glow { from { scale: .82; opacity: .6; } to { scale: 1.08; opacity: 1; } }
+.welcome-title { margin: 0; font: var(--type-display); font-size: 30px; line-height: 36px; letter-spacing: var(--track-display); text-wrap: balance; }
+.welcome-text { margin: 0; max-width: 42ch; font: var(--type-body); font-size: 15px; line-height: 22px; color: var(--text-secondary); text-wrap: pretty; }
+.welcome-field { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-4); font: var(--type-callout); color: var(--text-secondary); }
+.welcome-foot { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-6) var(--space-5); }
+.welcome-foot .spacer { flex: 1; }
+.welcome-dots { display: flex; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.welcome-dots li { width: 6px; height: 6px; border-radius: var(--radius-pill); background: var(--separator); transition: width var(--dur-state) var(--ease-out), background-color var(--dur-state) var(--ease-out); }
+.welcome-dots li[data-done] { background: var(--text-secondary); }
+.welcome-dots li[data-on] { width: 20px; background: var(--accent); }
+
+/* Marca e fim: o anel grande se forma girando e respira devagar; no fim ele fecha e vira um visto. */
+.page-brand .ring, .page-ready .ring { animation: ring-in 1000ms var(--ease-out) both, ring-spin 9600ms linear 1000ms infinite; }
+.page-brand .ring-arc { animation: ring-draw 1000ms var(--ease-out) both, ring-breathe 2400ms var(--ease-in-out) 1600ms infinite alternate; }
+.page-ready .ring { animation: ring-in 1000ms var(--ease-out) both; }
+.page-ready .ring-arc { animation: ring-draw 900ms var(--ease-out) both, ring-close 600ms var(--ease-out) 900ms forwards; }
+.ready-check { color: var(--accent); animation: pop-in 420ms var(--ease-out) 1300ms both; }
+@keyframes ring-close { to { stroke-dasharray: 100 100; } }
+@keyframes pop-in { from { scale: .4; opacity: 0; } }
+
+/* O que ele acha: as oito categorias com a análise de verdade, uma por vez. */
+.page-find { width: min(600px, 100%); }
+.welcome-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); width: 100%; margin: 0; padding: 0; list-style: none; }
+.tile {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: var(--space-3);
+  border-radius: var(--radius-group);
+  background: var(--surface);
+  box-shadow: var(--shadow-control), inset 0 0 0 .5px var(--separator);
+  align-content: start;
+  text-align: left;
+  animation: rise-in 420ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+  transition: opacity var(--dur-state) var(--ease-out);
+}
+.tile-icon { display: grid; place-items: center; width: 30px; height: 30px; margin-bottom: var(--space-2); border-radius: var(--radius-icon); background: var(--c); color: var(--on-category); }
+.tile-name { font: var(--type-headline); letter-spacing: var(--track-headline); }
+.tile-status { display: flex; align-items: center; gap: 6px; min-height: 16px; font: var(--type-callout); color: var(--text-secondary); }
+.tile-status .num { color: var(--text); animation: rise-in 320ms var(--ease-out) both; }
+.tile[data-status="absent"] { opacity: .55; }
+.tile[data-status="absent"] .tile-icon { filter: grayscale(1); opacity: .6; }
+
+/* Seguro por padrão: o cache vai para a Lixeira; o que é seu fica, com cadeado. */
+.scene { display: flex; align-items: center; gap: var(--space-8); }
+.scene-rows { display: grid; gap: 6px; width: 210px; margin: 0; padding: 0; list-style: none; }
+.scene-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 34px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  box-shadow: var(--shadow-control), inset 0 0 0 .5px var(--separator);
+  font: var(--type-callout);
+  text-align: left;
+}
+.scene-row span { flex: 1; }
+.scene-row.kept { color: var(--text-secondary); }
+.scene-row.go .icon { color: var(--accent); }
+.scene-row.go { animation: to-trash 3600ms var(--ease-in-out) 700ms infinite; }
+.scene-trash { color: var(--text-secondary); animation: trash-bump 3600ms var(--ease-out) 700ms infinite; }
+@keyframes to-trash {
+  0%, 16% { translate: 0 0; scale: 1; opacity: 1; }
+  46% { translate: 152px 40px; scale: .2; opacity: 0; }
+  47%, 76% { translate: 0 0; scale: .96; opacity: 0; }
+  90%, 100% { translate: 0 0; scale: 1; opacity: 1; }
+}
+@keyframes trash-bump { 0%, 40% { scale: 1; color: var(--text-secondary); } 48% { scale: 1.16; color: var(--accent); } 62%, 100% { scale: 1; color: var(--text-secondary); } }
+.welcome-points { display: grid; gap: var(--space-3); margin: var(--space-2) 0 0; padding: 0; list-style: none; text-align: left; }
+.welcome-points li { display: flex; align-items: flex-start; gap: var(--space-3); font: var(--type-body); font-size: 14px; line-height: 20px; animation: rise-in 420ms var(--ease-out) both; }
+.welcome-points li:nth-child(2) { animation-delay: 80ms; }
+.welcome-points li:nth-child(3) { animation-delay: 160ms; }
+.welcome-points li:nth-child(4) { animation-delay: 240ms; }
+.welcome-points .icon { flex: none; margin-top: 2px; color: var(--accent); }
+
+/* Permissões: status real do acesso e as duas escolhas da barra de menus. */
+.access-badge {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 24px;
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow-popover);
+  animation: ring-in 800ms var(--ease-out) both;
+}
+.welcome-card { width: 100%; margin-top: var(--space-3); padding: var(--space-4); border-radius: var(--radius-group); background: var(--surface); box-shadow: inset 0 0 0 .5px var(--separator); text-align: left; }
+.access-status { justify-self: end; }
+
+@media (prefers-reduced-motion: reduce) {
+  dialog.welcome[open], .welcome-page > *, .welcome-glow, .tile, .tile-status .num, .scene-row.go, .scene-trash, .welcome-points li,
+  .access-badge, .ready-check, .page-brand .ring, .page-brand .ring-arc, .page-ready .ring, .page-ready .ring-arc { animation: none; }
+  .page-ready .ring-arc { stroke-dasharray: 100 100; }
+}
+
+/* ---------- Gráfico do histórico ----------
+   Série única em --chart-line; texto sempre nos tokens de texto; grade e eixos recuados. */
+.chart-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
+.chart-head .group-heading { margin: 0; }
+.chart-box { margin-bottom: var(--space-5); }
+.chart { position: relative; }
+.chart-svg { display: block; width: 100%; height: auto; overflow: visible; border-radius: var(--radius-control); }
+.chart-svg:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }
+.chart-grid { stroke: var(--separator); stroke-width: 1; }
+.chart-axis { fill: var(--text-secondary); font: var(--type-footnote); font-variant-numeric: tabular-nums; }
+.chart-area { fill: var(--chart-fill); }
+.chart-line { fill: none; stroke: var(--chart-line); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-mark { fill: var(--chart-line); stroke: var(--surface); stroke-width: 2; }
+.chart-cross { stroke: var(--text-secondary); stroke-width: 1; stroke-dasharray: 2 3; }
+.chart-dot { fill: var(--surface); stroke: var(--chart-line); stroke-width: 2; }
+.chart-tip {
+  position: absolute;
+  top: 0;
+  left: var(--x);
+  translate: 10px 0;
+  display: grid;
+  gap: 1px;
+  padding: 6px 9px;
+  border-radius: var(--radius-popover);
+  background: var(--popover);
+  box-shadow: var(--shadow-popover);
+  font: var(--type-callout);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.chart-tip[data-flip] { translate: calc(-100% - 10px) 0; }
+.chart-tip-value { font: var(--type-headline); color: var(--text); font-variant-numeric: tabular-nums; }
+.chart-tip-mark { display: inline-flex; align-items: center; gap: 5px; }
+.chart-tip-mark::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--chart-line); }
+.chart-empty { margin: var(--space-1) 0 0; }

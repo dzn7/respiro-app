@@ -155,12 +155,13 @@ export async function fingerprint(dir) {
 }
 
 /**
- * Tamanho com cache por impressão digital.
+ * Tamanho com cache por impressão digital. `measure` troca o du por algo mais rápido da própria ferramenta.
  * @param {string} path @param {import('../types.js').ScanContext['sizeCache']} cache
+ * @param {(path: string) => Promise<number>} [measure]
  */
-export async function cachedSize(path, cache) {
+export async function cachedSize(path, cache, measure = size) {
   const key = await fingerprint(path);
-  if (cache[path]?.key !== key) cache[path] = { key, size: await size(path) };
+  if (cache[path]?.key !== key) cache[path] = { key, size: await measure(path) };
   return cache[path].size;
 }
 

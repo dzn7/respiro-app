@@ -1,11 +1,11 @@
-// pnpm, npm, yarn, bun e pip. Comando oficial sempre que a CLI existe.
+// pnpm, npm, yarn, bun, pip, uv, Go, Cargo, Gradle, Maven, CocoaPods e pub.
+// Comando oficial sempre que a CLI existe; Lixeira quando a ferramenta não tem comando ou não está instalada.
 import { readdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { cachedSize, exists, has, home, measure, run, tilde } from '../sys.js';
+import { msg } from '../../shared/i18n.js';
+import { cachedSize, exists, has, home, measure, run, size, tilde } from '../sys.js';
 
 export const id = 'packages';
-export const name = 'Caches de pacotes';
-export const blurb = 'Pacotes que pnpm, npm, yarn, bun e pip guardam para instalar mais rápido. Eles baixam de novo quando precisarem.';
 
 /** @param {string} cmd @param {string[]} args */
 const ask = (cmd, args) => run(cmd, args, { timeout: 15_000 }).then((out) => out.trim(), () => '');
@@ -20,8 +20,8 @@ export async function scan(ctx) {
     const [store, meta] = await Promise.all([ask('pnpm', ['store', 'path']), ask('pnpm', ['cache', 'path'])]);
     if (store) {
       items.push({
-        id: 'pnpm-store', name: 'pnpm store', detail: tilde(store), path: store, size: 0, freeable: null, safe: true,
-        note: 'O pnpm remove só pacotes que nenhum projeto usa. O valor liberado aparece depois.',
+        id: 'pnpm-store', name: msg('name.pnpmStore'), detail: tilde(store), path: store, size: 0, freeable: null, safe: true,
+        note: msg('note.pnpmStore'),
         action: { kind: 'cmd', key: 'pnpm-prune' },
       });
       // Formatos de store de versões anteriores do pnpm (v3, v10…), que o pnpm atual não lê.
@@ -29,15 +29,15 @@ export async function scan(ctx) {
         const path = join(dirname(store), v);
         if (/^v\d+$/.test(v) && path !== store) {
           items.push({
-            id: `pnpm-store-${v}`, name: `pnpm store antigo (${v})`, detail: tilde(path), path, size: 0, freeable: 0, safe: false,
-            note: 'Usado por versões anteriores do pnpm. Projeto que ainda use uma delas baixa os pacotes de novo.',
+            id: `pnpm-store-${v}`, name: msg('name.pnpmOld', { v }), detail: tilde(path), path, size: 0, freeable: 0, safe: false,
+            note: msg('note.pnpmOld'),
             action: { kind: 'trash', path },
           });
         }
       }
     }
     if (meta) {
-      items.push({ id: 'pnpm-meta', name: 'pnpm (metadados)', detail: tilde(meta), path: meta, size: 0, freeable: 0, safe: true,
+      items.push({ id: 'pnpm-meta', name: msg('name.pnpmMeta'), detail: tilde(meta), path: meta, size: 0, freeable: 0, safe: true,
         action: { kind: 'trash', path: meta } });
     }
   }
@@ -68,10 +68,65 @@ export async function scan(ctx) {
       action: pip ? { kind: 'cmd', key: 'pip-purge' } : { kind: 'trash', path: pipCache } });
   }
 
+  items.push(...(await otherTools()));
+
   if (!items.length) return null;
   // O store do pnpm é o maior e só muda quando ganha ou perde pacote: reaproveita a medição anterior.
-  await Promise.all(items.filter((i) => i.id.startsWith('pnpm-store')).map(async (i) => {
-    i.size = await cachedSize(/** @type {string} */ (i.path), ctx.sizeCache);
+  // uv cache size é ~4x mais rápido que o du em caches com milhões de arquivos.
+  const uvSize = (/** @type {string} */ p) => run('uv', ['cache', 'size'], { timeout: 120_000 }).then((o) => Number(o.trim()) || size(p), () => size(p));
+  await Promise.all(items.filter((i) => i.id.startsWith('pnpm-store') || i.id === 'uv').map(async (i) => {
+    i.size = await cachedSize(/** @type {string} */ (i.path), ctx.sizeCache, i.id === 'uv' ? uvSize : undefined);
   }));
   return { items: await measure(items) };
+}
+
+/** Ecossistemas além do JavaScript. Cada um só aparece se a pasta existir. */
+async function otherTools() {
+  /** @type {import('../../types.js').Item[]} */
+  const items = [];
+  /** @param {Omit<import('../../types.js').Item, 'size' | 'freeable' | 'safe'> & Partial<import('../../types.js').Item>} item */
+  const add = async (item) => {
+    if (item.path && await exists(item.path)) items.push({ size: 0, freeable: 0, safe: true, ...item });
+  };
+  const [uv, go, pod, dart] = await Promise.all(['uv', 'go', 'pod', 'dart'].map(has));
+
+  // uv: "nunca é seguro mexer na pasta direto" (docs da Astral). prune tira só o que nada mais alcança.
+  const uvDir = uv ? await ask('uv', ['cache', 'dir']) : join(home, '.cache/uv');
+  await add({ id: 'uv', name: 'uv', detail: tilde(uvDir), path: uvDir, freeable: null, note: msg('note.uvPrune'),
+    action: uv ? { kind: 'cmd', key: 'uv-prune' } : { kind: 'trash', path: uvDir } });
+
+  // Go: o cache de módulos é só leitura; só o próprio go consegue apagar.
+  if (go) {
+    const [mod, build] = (await ask('go', ['env', 'GOMODCACHE', 'GOCACHE'])).split('\n');
+    if (mod) await add({ id: 'go-mod', name: msg('name.goModules'), detail: tilde(mod), path: mod, action: { kind: 'cmd', key: 'go-clean-modcache' } });
+    if (build) await add({ id: 'go-build', name: msg('name.goBuild'), detail: tilde(build), path: build, action: { kind: 'cmd', key: 'go-clean-cache' } });
+  }
+
+  // Cargo: sem comando estável para o cache global; downloads e fontes voltam no próximo build.
+  for (const [id, rel, key] of [['cargo-cache', 'registry/cache', 'name.cargoCache'], ['cargo-src', 'registry/src', 'name.cargoSrc'], ['cargo-git', 'git/checkouts', 'name.cargoGit']]) {
+    const path = join(home, '.cargo', rel);
+    await add({ id, name: msg(key), detail: tilde(path), path, action: { kind: 'trash', path } });
+  }
+
+  // Gradle: sem comando de limpeza; com daemon rodando, a pasta está em uso.
+  const daemon = await run('/usr/bin/pgrep', ['-f', 'GradleDaemon'], { timeout: 5000 }).then(() => true, () => false);
+  const gradleCaches = join(home, '.gradle/caches');
+  await add({ id: 'gradle-caches', name: msg('name.gradleCaches'), detail: tilde(gradleCaches), path: gradleCaches, safe: !daemon, inUse: daemon,
+    note: daemon ? msg('note.gradleRunning') : undefined, action: { kind: 'trash', path: gradleCaches } });
+  const gradleDists = join(home, '.gradle/wrapper/dists');
+  await add({ id: 'gradle-dists', name: msg('name.gradleDists'), detail: tilde(gradleDists), path: gradleDists, safe: false,
+    note: msg('note.gradleDists'), action: { kind: 'trash', path: gradleDists } });
+
+  // Maven: pode guardar artefato instalado localmente que nunca foi publicado.
+  const m2 = join(home, '.m2/repository');
+  await add({ id: 'maven', name: 'Maven', detail: tilde(m2), path: m2, safe: false, note: msg('note.maven'), action: { kind: 'trash', path: m2 } });
+
+  const pods = join(home, 'Library/Caches/CocoaPods');
+  await add({ id: 'cocoapods', name: 'CocoaPods', detail: tilde(pods), path: pods,
+    action: pod ? { kind: 'cmd', key: 'pod-cache-clean' } : { kind: 'trash', path: pods } });
+
+  const pub = join(home, '.pub-cache');
+  await add({ id: 'pub', name: msg('name.pub'), detail: tilde(pub), path: pub, note: msg('note.pubGet'),
+    action: dart ? { kind: 'cmd', key: 'dart-pub-cache-clean' } : { kind: 'trash', path: pub } });
+  return items;
 }

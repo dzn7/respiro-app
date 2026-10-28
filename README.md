@@ -8,7 +8,7 @@ Seu Mac diz que o disco tá cheio e joga a culpa em "Dados do Sistema"?<br>
 O Respiro abre essa caixa-preta e devolve o espaço que seus projetos esqueceram para trás.
 
 [![macOS](https://img.shields.io/badge/macOS-Apple_Silicon-1f1e1b?style=flat-square&logo=apple&logoColor=white)](#instalando)
-[![Versão](https://img.shields.io/badge/versão-0.2.0-b4552f?style=flat-square)](https://github.com/dzn7/respiro-app/releases/latest)
+[![Versão](https://img.shields.io/badge/versão-0.3.0-b4552f?style=flat-square)](https://github.com/dzn7/respiro-app/releases/latest)
 [![Electron](https://img.shields.io/badge/Electron-44-2b2a27?style=flat-square&logo=electron&logoColor=9feaf9)](https://www.electronjs.org/)
 [![Sem telemetria](https://img.shields.io/badge/telemetria-zero-2f7a4f?style=flat-square)](#privacidade)
 [![Licença](https://img.shields.io/badge/licença-proprietária-1f1e1b?style=flat-square)](LICENSE)
@@ -38,6 +38,8 @@ Dava para sair apagando com `rm -rf`. Também dava para apagar o volume do Postg
 3. **Aperta "Revisar e liberar…".** Ele mostra a lista exata do que vai sair e como. Pasta vai para a Lixeira. Cache de ferramenta é limpo pelo comando da própria ferramenta.
 4. **Confere o resultado.** O app compara o espaço livre antes e depois. Quando o disco ganha menos do que foi removido, ele conta o motivo em vez de fingir que deu tudo certo.
 
+Na primeira vez, uma apresentação curta de cinco passos mostra o que ele faz enquanto a análise já roda por trás. Depois, fechar a janela deixa o Respiro na barra de menus com o espaço livre à vista; se o disco apertar, o anel fica vermelho. No Histórico tem um gráfico do espaço livre ao longo dos meses. E o app fala português, inglês e espanhol, seguindo o idioma do seu Mac.
+
 <details>
 <summary><b>Quero ver mais telas</b></summary>
 <br>
@@ -65,13 +67,13 @@ Só aparece o que existe na sua máquina. Não usa Docker? A categoria nem mostr
 
 | | Onde mora | Como ele limpa |
 |---|---|---|
-| **Caches de pacotes** | pnpm, npm, Yarn, Bun, pip | `pnpm store prune`, `npm cache clean --force`, `yarn cache clean`, `bun pm cache rm`, `pip3 cache purge` |
-| **Docker** | containers parados, imagens sem uso, cache de build, volumes soltos | `docker container rm`, `docker image rm`, `docker builder prune` e volume só um de cada vez |
-| **node_modules** | projetos parados há mais de 30 dias (você ajusta) | manda para a Lixeira |
-| **Xcode** | DerivedData, simulador que não abre mais, cache | Lixeira ou `xcrun simctl delete unavailable` |
-| **Navegadores de teste** | versões do Playwright que nenhum projeto usa | Lixeira, com a mesma regra que o Playwright usa |
+| **Caches de pacotes** | pnpm, npm, Yarn, Bun, pip, uv, Go, Cargo, Gradle, Maven, CocoaPods, pub | o comando de cada um (`pnpm store prune`, `uv cache prune`, `go clean -modcache`, `pod cache clean --all`…); quem não tem comando vai para a Lixeira |
+| **Docker** | containers parados, imagens sem uso, cache de build, volumes soltos | `docker container rm`, `docker image rm`, `docker builder prune`, volume só um de cada vez, e um botão para o Docker Desktop devolver o espaço ao macOS |
+| **Projetos** | `node_modules`, `.next`, `dist`, `target`, `.venv` e worktrees do git de projetos parados há mais de 30 dias (você ajusta) | Lixeira, `cargo clean` ou `git worktree remove` (sem `--force`: com mudança, o git recusa) |
+| **Xcode e Android** | DerivedData, simulador que não abre mais, cache, DeviceSupport antigo, emuladores e imagens do Android | Lixeira, `xcrun simctl delete unavailable`, `avdmanager`, `sdkmanager` |
+| **Navegadores de teste** | versões do Playwright, Cypress e Puppeteer que nenhum projeto usa | Lixeira, com a mesma regra que o Playwright usa |
 | **Homebrew** | instaladores baixados e versões antigas | `brew cleanup --prune=all` |
-| **Caches e logs de apps** | `~/Library/Caches` e `~/Library/Logs` | Lixeira, e o que é da Apple ele nem toca |
+| **Caches de apps e editores** | `~/Library/Caches`, `~/Library/Logs`, extensão velha do VS Code/Cursor/Windsurf, cache de IDE JetBrains antiga | Lixeira, e o que é da Apple ele nem toca |
 | **Lixeira** | `~/.Trash` | esvazia, mas só depois de você marcar "entendi" |
 
 ## "Tá, mas é seguro?"
@@ -131,7 +133,7 @@ Por enquanto o build é para Apple Silicon. Tem Mac Intel? Clone o projeto e rod
 | O macOS pode pedir | Para quê | Se você negar |
 |---|---|---|
 | Acesso Total ao Disco | medir a Lixeira | tudo funciona, só a Lixeira fica sem tamanho |
-| Acesso a Documentos, Mesa e Downloads | achar `node_modules` de projetos guardados ali | ele pula essas pastas |
+| Acesso a Documentos, Mesa e Downloads | achar pastas geradas de projetos guardados ali | ele pula essas pastas |
 | Controlar o Finder | esvaziar a Lixeira quando você manda | a Lixeira fica como está |
 | Senha de administrador | devolver para você uma pasta criada com `sudo` | aquele item não é limpo e nada muda |
 
@@ -263,8 +265,10 @@ Para entender as decisões: [`PRD.md`](PRD.md) explica o produto e as regras de 
 - [x] Modo simular, histórico e ganho real medido
 - [x] Filtros, itens ignorados, tema claro e escuro
 - [x] Pastas do `root` com a senha do macOS
-- [ ] Puppeteer, Cypress e o cache do `uv`
-- [ ] `iOS DeviceSupport` antigo
+- [x] uv, Go, Cargo, Gradle, Maven, CocoaPods, pub, `.next`, `target`, `.venv`, worktrees
+- [x] Puppeteer, Cypress, `iOS DeviceSupport`, Android, extensões de editor, JetBrains
+- [x] Português, inglês e espanhol
+- [x] Barra de menus com aviso de disco cheio, gráfico do espaço livre, boas-vindas
 - [ ] Escolher em quais pastas procurar projetos
 - [ ] Build para Intel, assinatura e notarização
 

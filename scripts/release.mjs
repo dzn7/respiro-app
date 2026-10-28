@@ -1,12 +1,13 @@
 // .app e .dmg em dist/. Ícone: logo.jpg → build/icon.png (scripts/icon.js) → .icns com sips e iconutil.
 // Instalador: fundo de scripts/dmg-background.js, layout pelo Finder (AppleScript), ícone do volume com SetFile.
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { packager } from '@electron/packager';
 import electron from 'electron';
+import { DICTS } from '../src/shared/i18n.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const { version, productName } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
@@ -26,7 +27,7 @@ for (const size of [16, 32, 128, 256, 512]) {
 }
 sh('/usr/bin/iconutil', ['-c', 'icns', iconset, '-o', join(root, 'build/icon.icns')]);
 
-const why = 'O Respiro procura pastas node_modules de projetos parados aqui. Nada é apagado sem a sua confirmação.';
+const why = /** @type {string} */ (DICTS['pt-BR']['plist.folders']);
 const [appDir] = await packager({
   dir: root, out: join(root, 'dist'), overwrite: true, platform: 'darwin', arch, prune: true, asar: true,
   name: productName, appBundleId: 'br.com.thalena.respiro', appVersion: version, appCategoryType: 'public.app-category.utilities',
@@ -36,9 +37,20 @@ const [appDir] = await packager({
     NSDocumentsFolderUsageDescription: why,
     NSDesktopFolderUsageDescription: why,
     NSDownloadsFolderUsageDescription: why,
-    NSAppleEventsUsageDescription: 'O Respiro pede ao Finder para esvaziar a Lixeira quando você confirma.',
+    NSAppleEventsUsageDescription: DICTS['pt-BR']['plist.appleEvents'],
   },
 });
+
+// Pedidos de permissão no idioma do macOS: InfoPlist.strings em cada .lproj, gerado dos dicionários do app.
+for (const [locale, lproj] of /** @type {const} */ ([['pt-BR', 'pt_BR'], ['en', 'en'], ['es', 'es']])) {
+  const d = DICTS[locale];
+  const folders = /** @type {string} */ (d['plist.folders']);
+  const entries = { NSDocumentsFolderUsageDescription: folders, NSDesktopFolderUsageDescription: folders, NSDownloadsFolderUsageDescription: folders,
+    NSAppleEventsUsageDescription: /** @type {string} */ (d['plist.appleEvents']) };
+  const dir = join(appDir, `${productName}.app/Contents/Resources/${lproj}.lproj`);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'InfoPlist.strings'), Object.entries(entries).map(([k, v]) => `"${k}" = "${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}";`).join('\n') + '\n');
+}
 
 // ---------- Instalador (UI.md › Instalador) ----------
 // Janela 640×440 sem barra de ferramentas, fundo Retina, ícones de 112 px alinhados com a seta do fundo.

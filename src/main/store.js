@@ -5,12 +5,13 @@ import { rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /**
- * @typedef {{ scan: import('../types.js').Scan | null, history: import('../types.js').HistoryEntry[],
+ * @typedef {{ scan: import('../types.js').Scan | null, history: import('../types.js').HistoryEntry[], samples: import('../types.js').Sample[],
  *   prefs: import('../types.js').Prefs, sizeCache: import('../types.js').ScanContext['sizeCache'] }} Data
  */
 
 /** @type {Data} */
-export let data = { scan: null, history: [], prefs: { simulate: false, staleDays: 30, theme: 'system', scanOnLaunch: true, ignored: [] }, sizeCache: {} };
+export let data = { scan: null, history: [], samples: [], prefs: { simulate: false, staleDays: 30, theme: 'system', scanOnLaunch: true, ignored: [], locale: 'system',
+  onboarded: false, showInMenuBar: true, openAtLogin: false, lowDiskAlert: 10 }, sizeCache: {} };
 const file = () => join(app.getPath('userData'), 'respiro.json');
 
 export function load() {

@@ -14,6 +14,10 @@ test('trashRule aceita só as raízes de cache conhecidas', () => {
     `${H}/Library/Caches/com.google.Chrome`, `${H}/Library/Caches/com.apple.dt.Xcode`, `${H}/Library/Logs/Code`,
     `${H}/Library/Developer/Xcode/DerivedData/App-abc`, `${H}/Library/Developer/CoreSimulator/Devices/084A56ED-2D58-43CA-9F64-99A255A795BA`,
     `${H}/Library/pnpm/store/v3`, `${H}/.bun/install/cache`, `${H}/code/app/node_modules`,
+    `${H}/code/app/.next`, `${H}/code/rust/target`, `${H}/code/py/.venv`, `${H}/.cache/uv`, `${H}/.cargo/registry/cache`,
+    `${H}/.gradle/caches`, `${H}/.m2/repository`, `${H}/.pub-cache`, `${H}/Library/Developer/Xcode/iOS DeviceSupport/iPhone14,2 17.0 (21A329)`,
+    `${H}/Library/Caches/Cypress/13.6.0`, `${H}/.cache/puppeteer/chrome/mac_arm-121.0.6167.85`, `${H}/.vscode/extensions/ms-python.python-2024.1.0`,
+    `${H}/Library/Caches/JetBrains/WebStorm2024.1`, `${H}/Library/Android/sdk/system-images/android-34/google_apis/arm64-v8a`,
   ]) assert.equal(trashRule(ok, H), null, ok);
 });
 
@@ -24,6 +28,9 @@ test('trashRule recusa pessoal, sistema, raiz e truques de caminho', () => {
     `${H}/code/app/node_modules/../src`, `${H}/code/app/node_modules/`, `${H}/code/app/node_modules/x/node_modules`,
     `${H}/.config/app/node_modules`, `${H}/Library/Application Support/x/node_modules`, `/tmp/node_modules`, '/Users/outro/Library/Caches/x',
     'node_modules', `${H}/code/src`,
+    `${H}/code/app/node_modules/x/dist`, `${H}/.config/x/target`, `${H}/Library/Application Support/x/.next`, `${H}/.cargo/registry`,
+    `${H}/.m2`, `${H}/.cache`, `${H}/.vscode/extensions`, `${H}/.vscode/extensions/.obsolete`, `${H}/Library/Caches/Cypress/binary_state.json`,
+    `${H}/.cache/puppeteer/chrome`, `${H}/Library/Android/sdk/system-images/android-34`, `${H}/Library/Android/sdk/platforms/android-34`,
   ]) assert.notEqual(trashRule(bad, H), null, bad);
 });
 
@@ -37,19 +44,34 @@ test('comando oficial: tabela fechada e argumento validado', async () => {
   assert.ok(await refuse(item({ kind: 'cmd', key: 'rm-everything' }), 30));
   assert.ok(await refuse(item(null), 30));
   assert.equal(commandLine({ kind: 'cmd', key: 'pnpm-prune' }), 'pnpm store prune');
+  assert.equal(commandLine({ kind: 'cmd', key: 'go-clean-modcache' }), 'go clean -modcache');
+
+  const ok = async (/** @type {any} */ action) => assert.equal(await refuse(item(action), 30), null, JSON.stringify(action));
+  const no = async (/** @type {any} */ action) => assert.ok(await refuse(item(action), 30), JSON.stringify(action));
+  await ok({ kind: 'cmd', key: 'cargo-clean', arg: `${home}/code/rust/Cargo.toml` });
+  await no({ kind: 'cmd', key: 'cargo-clean', arg: '/etc/Cargo.toml' });
+  await no({ kind: 'cmd', key: 'cargo-clean', arg: `${home}/code/rust/../../Cargo.toml` });
+  await no({ kind: 'cmd', key: 'cargo-clean', arg: `${home}/Library/x/Cargo.toml` });
+  await no({ kind: 'cmd', key: 'git-worktree-remove', arg: 'code/wt' });
+  await no({ kind: 'cmd', key: 'git-worktree-remove', arg: `${home}/Library/wt` });
+  await ok({ kind: 'cmd', key: 'avd-delete', arg: 'Pixel_8_API_34' });
+  await no({ kind: 'cmd', key: 'avd-delete', arg: '../Pixel' });
+  await ok({ kind: 'cmd', key: 'sdk-uninstall', arg: 'system-images;android-34;google_apis;arm64-v8a' });
+  await no({ kind: 'cmd', key: 'sdk-uninstall', arg: 'platforms;android-34' });
+  await no({ kind: 'cmd', key: 'uv-prune', arg: '--force' });
 });
 
 test('clean recusa protegido, fora das raízes e individual em lote, sem tocar no disco', async () => {
   /** @param {string} id @param {any} action @param {object} [extra] */
   const t = (id, action, extra = {}) => ({ ref: `appcaches/${id}`, category: /** @type {const} */ ('appcaches'),
     item: { id, name: id, size: 10, freeable: 10, safe: true, action, ...extra } });
-  const r = await clean([t('a', null, { note: 'Em uso.' }), t('b', { kind: 'trash', path: `${home}/Documents` }), t('c', { kind: 'trash', path: '/etc' })],
+  const r = await clean([t('a', null, { note: { key: 'note.containerRunning' } }), t('b', { kind: 'trash', path: `${home}/Documents` }), t('c', { kind: 'trash', path: '/etc' })],
     { simulate: false, staleDays: 30 });
   assert.deepEqual(r.done, []);
-  assert.deepEqual(r.failed.map((f) => f.message), ['Em uso.', 'Fora das pastas que o Respiro pode limpar.', 'Caminho inválido.']);
+  assert.deepEqual(r.failed.map((f) => f.message.key), ['note.containerRunning', 'refuse.outside', 'refuse.invalidPath']);
 
   const solo = await clean([t('v', { kind: 'cmd', key: 'docker-volume-rm', arg: 'db' }, { individual: true }), t('w', null)], { simulate: true, staleDays: 30 });
-  assert.equal(solo.failed[0].message, 'Este item precisa de confirmação individual.');
+  assert.equal(solo.failed[0].message.key, 'error.solo');
 });
 
 test('simular soma o previsto e não executa', async () => {
@@ -85,5 +107,5 @@ test('senha de administrador só faz chown, com caminhos citados', () => {
   const script = adminScript(['/Users/ana/Library/Caches/node-gyp', '/Users/ana/Library/Caches/a"b'], { uid: 501, gid: 20 });
   assert.match(script, /^do shell script "\/usr\/sbin\/chown -R 501:20 " & quoted form of "\/Users\/ana\/Library\/Caches\/node-gyp" & " " & quoted form of "\/Users\/ana\/Library\/Caches\/a\\"b" with administrator privileges/);
   assert.doesNotMatch(script, /\brm\b/);
-  assert.equal(friendly(new Error("EACCES: permission denied, rename '/x'")), 'Sem permissão: parte dos arquivos pertence ao administrador (criados com sudo).');
+  assert.equal(friendly(new Error("EACCES: permission denied, rename '/x'")).key, 'error.permission');
 });

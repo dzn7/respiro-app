@@ -7,14 +7,20 @@ Electron 44, JavaScript ESM com JSDoc checado por `tsc` (sem build), HTML/CSS/JS
 
 ## Estrutura
 ```
-src/main/main.js          janela, menu, IPC
+src/main/main.js          janela, menu, IPC, ciclo de vida com a barra de menus, amostras do gráfico
+src/main/tray.js          ícone da barra de menus (anel desenhado em código), menu e aviso de disco cheio
 src/main/preload.cjs      ponte segura (window.respiro)
 src/main/scan.js          roda as categorias e o disco
 src/main/categories/*.js  uma categoria por arquivo (só leitura)
 src/main/cleaner.js       ÚNICO lugar que apaga: Lixeira e comandos oficiais
 src/main/sys.js           execFile, du, statfs, PATH do shell
-src/main/store.js         cache da análise, histórico, preferências
-src/renderer/             index.html, tokens.css, app.css, app.js, format.js, icons.js
+src/main/store.js         cache da análise, histórico, amostras do espaço livre, preferências
+src/shared/i18n.js        textos em pt-BR, en e es (main e renderer); main devolve chaves (Msg), quem mostra traduz
+src/shared/locales/*.js   dicionários com as mesmas chaves (test/i18n.test.js confere)
+src/renderer/             index.html, tokens.css, app.css, app.js, icons.js
+src/renderer/loader.js    anel da marca em movimento (carregamento)
+src/renderer/welcome.js   boas-vindas do primeiro uso
+src/renderer/chart.js     gráfico do espaço livre no Histórico
 src/renderer/controls.js  checkbox, switch, select, menu, tooltip, disclosure (sem controle nativo)
 src/renderer/motion.js    countTo, swap, leave, morph (tempos vêm dos tokens)
 src/renderer/fonts/       Geist e Geist Mono embarcadas (OFL)
@@ -32,11 +38,11 @@ scripts/dmg-background.js fundo Retina do instalador
 - `npm run release` — `.app` e `.dmg` em `dist/`
 
 ## Regras inegociáveis
-1. Apagar só via `src/main/cleaner.js` (Lixeira ou comando oficial da tabela). Nunca `rm`, `unlink`, `trashItem` ou comando de limpeza fora dele. Regras S1–S10 no `PRD.md`.
+1. Apagar só via `src/main/cleaner.js` (Lixeira ou comando oficial da tabela). Nunca `rm`, `unlink`, `trashItem` ou comando de limpeza fora dele. Regras S1–S12 no `PRD.md`.
 2. Renderer nunca envia caminho nem comando ao main; só ids de item.
 3. Categoria nova segue a skill `respiro-categoria` (checklist de segurança + teste).
 4. Tela nova ou ajuste visual segue `UI.md` e a skill `respiro-tela`. Cor, tipo e tempo só por token de `tokens.css`. Ícone só Phosphor. Lucide e controles nativos (`input`, `select`, `details`) proibidos: use `controls.js`.
-5. Texto da interface em pt-BR, calmo, números como "12,4 GB".
+5. Texto da interface só por chave em `src/shared/locales/` nos três idiomas (pt-BR, en, es), calmo; números pelo `formatBytes` do idioma ("12,4 GB" / "12.4 GB"). Texto novo sem as três traduções não passa no teste.
 
 ## Skills do projeto (`.agents/skills/`)
 `respiro-tela` criar/ajustar tela · `respiro-categoria` novo tipo de cache · `respiro-revisao` revisar tela · `respiro-release` build e release.

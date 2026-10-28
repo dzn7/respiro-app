@@ -50,6 +50,10 @@
   --knob: #fffefb;
   --popover: #fffefb;
   --selection: rgb(180 85 47 / .12);
+  --accent-glow: rgb(180 85 47 / .16);
+  /* Série do gráfico: validada (dataviz) contra --surface no claro e no escuro. */
+  --chart-line: #b4552f;
+  --chart-fill: rgb(180 85 47 / .10);
 
   --shadow-control: 0 .5px 1px rgb(0 0 0 / .08);
   --shadow-sheet: 0 24px 64px -12px rgb(0 0 0 / .28), 0 0 0 .5px rgb(0 0 0 / .12);
@@ -59,7 +63,8 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --canvas: #262522;
-    --canvas-tint: rgb(38 37 34 / .82);
+    /* Opaco no escuro: com transparência, o material da janela clareia o fundo e o modo escuro vira cinza. */
+    --canvas-tint: #262522;
     --surface: #302f2b;
     --surface-sunken: #3a3934;
     --surface-hover: rgb(242 239 232 / .06);
@@ -91,6 +96,9 @@
     --knob: #f2efe8;
     --popover: #3a3934;
     --selection: rgb(229 138 98 / .18);
+    --accent-glow: rgb(229 138 98 / .14);
+    --chart-line: #d8774e;
+    --chart-fill: rgb(216 119 78 / .14);
 
     --shadow-control: 0 .5px 1px rgb(0 0 0 / .3);
     --shadow-sheet: 0 24px 64px -12px rgb(0 0 0 / .5), 0 0 0 .5px rgb(255 255 255 / .1);

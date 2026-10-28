@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { stoppedFor, toItems } from '../src/main/categories/docker.js';
 import { parsePreview } from '../src/main/categories/homebrew.js';
 import { ownerRunning, parseSize } from '../src/main/sys.js';
+import { setLocale, tx } from '../src/shared/i18n.js';
 
 test('parseSize nas bases de cada ferramenta', () => {
   assert.equal(parseSize('1.093GB'), 1_093_000_000);
@@ -42,7 +43,8 @@ test('docker: rodando, em uso e volume ligado ficam protegidos; volume solto é 
   const loose = by['volume-15e312ae2764bc821e463613b69ed8c9075e47320c218ae87379347782e994dd'];
   assert.deepEqual([loose.safe, loose.individual], [false, true]);
   assert.equal(by['volume-vazio'], undefined);
-  assert.equal(by['image-sha256:d2c0dada681450df'].detail, 'Imagem · criada em 27 de out. de 2026');
+  setLocale('pt-BR');
+  assert.equal(tx(by['image-sha256:d2c0dada681450df'].detail), 'Imagem · criada em 27 de out. de 2026');
 });
 
 test('brew cleanup -n vira partes com tamanho em base 1024', () => {
@@ -54,12 +56,16 @@ test('brew cleanup -n vira partes com tamanho em base 1024', () => {
   assert.deepEqual(parts.map((p) => p.size), [Math.round(30.5 * 1024 ** 2), Math.round(120.4 * 1024 ** 2)]);
 });
 
-test('status do docker em português', () => {
-  assert.equal(stoppedFor('Exited (0) 19 hours ago'), 'Parado há 19 horas');
-  assert.equal(stoppedFor('Exited (137) 5 days ago'), 'Parado há 5 dias');
-  assert.equal(stoppedFor('Exited (1) About an hour ago'), 'Parado há cerca de 1 hora');
-  assert.equal(stoppedFor('Exited (0) a minute ago'), 'Parado há 1 minuto');
-  assert.equal(stoppedFor('Created'), 'Parado');
+test('status do docker vira nota traduzível', () => {
+  setLocale('pt-BR');
+  const now = Date.now();
+  assert.equal(tx(stoppedFor('Exited (0) 19 hours ago', now)), 'Parado há 19 horas.');
+  assert.equal(tx(stoppedFor('Exited (137) 5 days ago', now)), 'Parado há 5 dias.');
+  assert.equal(tx(stoppedFor('Exited (1) About an hour ago', now)), 'Parado há 1 hora.');
+  assert.equal(tx(stoppedFor('Exited (0) a minute ago', now)), 'Parado há 1 minuto.');
+  assert.equal(tx(stoppedFor('Created', now)), 'Parado.');
+  setLocale('en');
+  assert.equal(tx(stoppedFor('Exited (0) 19 hours ago', now)), 'Stopped 19 hours ago.');
 });
 
 test('cache de app aberto é reconhecido pelo bundle ID ou fabricante', () => {

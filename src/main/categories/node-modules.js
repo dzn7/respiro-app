@@ -1,39 +1,60 @@
-// node_modules de projetos sob a pasta pessoal. Só os parados há mais de `staleDays` podem sair.
-import { readdir, stat } from 'node:fs/promises';
+// Projetos sob a pasta pessoal: pastas que as ferramentas geram e recriam (node_modules, .next, target, .venv…)
+// e worktrees do git. Só as de projeto parado há mais de `staleDays` entram como seguras.
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { du, exists, home, newestMtime, tilde } from '../sys.js';
+import { msg } from '../../shared/i18n.js';
+import { cachedSize, du, exists, has, home, newestMtime, run, tilde } from '../sys.js';
 
 export const id = 'node';
-export const name = 'node_modules';
-export const blurb = 'Dependências instaladas em projetos parados. Voltam com pnpm install ou npm install quando você retomar o projeto.';
+
+const JS = ['package.json'];
+const PY = ['pyproject.toml', 'requirements.txt', 'setup.py', 'Pipfile'];
+/** Pasta gerada → arquivo que precisa estar ao lado dela para contar como projeto. */
+export const PROJECT_MARKERS = /** @type {Record<string, string[]>} */ ({
+  node_modules: JS, '.next': JS, '.nuxt': JS, '.svelte-kit': JS, '.turbo': JS, '.parcel-cache': JS, dist: JS, build: JS,
+  target: ['Cargo.toml'], '.venv': PY, venv: PY,
+});
+export const ARTIFACTS = new Set(Object.keys(PROJECT_MARKERS));
+/** Podem ser código versionado: só seguros se o git ignora. */
+const MAYBE_SOURCE = new Set(['dist', 'build']);
 
 const SKIP_AT_HOME = new Set(['Library', 'Applications', 'Pictures', 'Movies', 'Music', 'Public']);
-const NOT_ACTIVITY = new Set(['node_modules', '.git', 'dist', 'build', '.next', '.turbo', '.cache', 'coverage', '.nuxt', '.output', '.svelte-kit']);
+const NOT_ACTIVITY = new Set([...ARTIFACTS, '.git', '.cache', 'coverage', '.output']);
 const INSTALL_MARKERS = ['.package-lock.json', '.modules.yaml', '.yarn-state.yml', '.yarn-integrity'];
 const DAY = 86_400_000;
 
 /**
- * Pastas node_modules ao lado de um package.json, sem entrar em pastas ocultas nem em outra node_modules.
- * @param {string} root @param {number} [maxDepth] profundidade de pastas visitadas abaixo de root
+ * Pastas geradas ao lado do arquivo que as define, e worktrees do git (pasta com .git em arquivo).
+ * Não entra em pastas ocultas, em pastas geradas nem em ~/Library.
+ * @param {string} root @param {number} [maxDepth]
  */
-export async function findNodeModules(root, maxDepth = 5) {
+export async function findArtifacts(root, maxDepth = 5) {
+  /** @type {{ project: string, path: string, kind: string }[]} */
+  const artifacts = [];
   /** @type {string[]} */
-  const found = [];
+  const worktrees = [];
   /** @param {string} dir @param {number} depth */
   async function walk(dir, depth) {
     const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+    const names = new Set(entries.map((e) => e.name));
+    if (entries.some((e) => e.name === '.git' && e.isFile())) worktrees.push(dir);
     /** @type {string[]} */
     const next = [];
     for (const e of entries) {
-      if (!e.isDirectory() || e.name.startsWith('.') || (depth === 0 && SKIP_AT_HOME.has(e.name))) continue;
-      if (e.name !== 'node_modules') next.push(join(dir, e.name));
-      else if (entries.some((x) => x.name === 'package.json')) found.push(join(dir, e.name));
+      if (!e.isDirectory()) continue;
+      const markers = PROJECT_MARKERS[e.name];
+      if (markers?.some((m) => names.has(m))) artifacts.push({ project: dir, path: join(dir, e.name), kind: e.name });
+      else if (!e.name.startsWith('.') && e.name !== 'node_modules' && !(depth === 0 && SKIP_AT_HOME.has(e.name))) next.push(join(dir, e.name));
     }
     if (depth < maxDepth) await Promise.all(next.map((d) => walk(d, depth + 1)));
   }
   await walk(root, 0);
-  return found.sort();
+  return { artifacts: artifacts.sort((a, b) => a.path.localeCompare(b.path)), worktrees: worktrees.sort() };
 }
+
+/** Só os node_modules (usado pelos navegadores de teste e pelos testes). @param {string} root @param {number} [maxDepth] */
+export const findNodeModules = async (root, maxDepth) =>
+  (await findArtifacts(root, maxDepth)).artifacts.filter((a) => a.kind === 'node_modules').map((a) => a.path);
 
 /** Último sinal de uso do projeto: arquivos, git e instalação. @param {string} project */
 export async function lastActivity(project) {
@@ -59,46 +80,123 @@ export function groupActivity(last) {
 
 /**
  * Revalida na hora de limpar: o projeto e as raízes acima dele seguem parados?
- * @param {string} nodeModules @param {number} staleDays @returns {Promise<string | null>} motivo para não limpar
+ * @param {string} artifact @param {number} staleDays @returns {Promise<import('../../types.js').Msg | null>} motivo para não limpar
  */
-export async function recheck(nodeModules, staleDays) {
-  for (let dir = dirname(nodeModules); dir.startsWith(`${home}/`); dir = dirname(dir)) {
-    if (!(await exists(join(dir, 'package.json')))) continue;
-    if (Date.now() - (await lastActivity(dir)) < staleDays * DAY) return `${basename(dir)} foi usado nos últimos ${staleDays} dias.`;
+export async function recheck(artifact, staleDays) {
+  const markers = [...new Set(Object.values(PROJECT_MARKERS).flat())];
+  for (let dir = dirname(artifact); dir.startsWith(`${home}/`); dir = dirname(dir)) {
+    if (!(await Promise.all(markers.map((m) => exists(join(dir, m))))).some(Boolean)) continue;
+    if (Date.now() - (await lastActivity(dir)) < staleDays * DAY) return msg('refuse.recentProject', { name: basename(dir), days: staleDays });
   }
   return null;
 }
 
+/**
+ * Repositório principal de uma worktree, lido do .git dela ("gitdir: <repo>/.git/worktrees/<nome>").
+ * @param {string} worktree @returns {Promise<string>}
+ */
+export async function worktreeMain(worktree) {
+  const pointer = (await readFile(join(worktree, '.git'), 'utf8')).trim();
+  const m = /^gitdir: (\/.+)\/\.git\/worktrees\/[^/]+$/.exec(pointer);
+  if (!m || !m[1].startsWith(`${home}/`)) throw new Error('not a worktree');
+  return m[1];
+}
+
+/**
+ * dist/build: o git ignora (seguro), não acompanha (pede atenção) ou versiona (é código, fica de fora)?
+ * @param {string} project @param {string} kind @returns {Promise<'ignored' | 'loose' | 'tracked'>}
+ */
+async function gitStatusOf(project, kind) {
+  const ok = (/** @type {string[]} */ args) => run('git', ['-C', project, ...args], { timeout: 10_000 }).then(() => true, () => false);
+  if (await ok(['check-ignore', '-q', kind])) return 'ignored';
+  return (await ok(['ls-files', '--error-unmatch', kind])) ? 'tracked' : 'loose';
+}
+
+/**
+ * @param {{ project: string, path: string, kind: string }} a @param {number} lastUsed @param {boolean} idle @param {number} size
+ * @param {{ cargo: boolean }} tools
+ * @returns {Promise<import('../../types.js').Item | null>}
+ */
+async function artifactItem(a, lastUsed, idle, size, tools) {
+  let freeable = /** @type {number | null} */ (size);
+  let note;
+  let safe = idle;
+  if (a.kind === 'node_modules') {
+    // pnpm e bun clonam arquivos do store (APFS): apagar a pasta devolve bem menos do que o du mostra.
+    const cloned = (await exists(join(a.path, '.pnpm'))) || (await exists(join(a.project, 'bun.lock'))) || (await exists(join(a.project, 'bun.lockb')));
+    if (cloned) { freeable = null; note = msg('note.cloned'); }
+    if (!idle) note = msg('note.nodeActive');
+  } else if (a.kind === '.venv' || a.kind === 'venv') {
+    const cfg = await readFile(join(a.path, 'pyvenv.cfg'), 'utf8').catch(() => '');
+    if (!cfg) return null;
+    if (/^uv\s*=/m.test(cfg)) { freeable = null; note = msg('note.venvCloned'); }
+    if (!idle) note = msg('note.venvActive');
+  } else if (MAYBE_SOURCE.has(a.kind)) {
+    const status = await gitStatusOf(a.project, a.kind);
+    if (status === 'tracked') return null;
+    if (status === 'loose') { safe = false; note = msg('note.buildMaybeSource'); }
+    if (!idle) note = msg('note.buildActive');
+  } else if (!idle) {
+    note = msg('note.buildActive');
+  }
+  return {
+    id: a.path, name: basename(a.project), detail: tilde(a.path), path: a.path, size, lastUsed, freeable, safe, inUse: !idle, note,
+    action: a.kind === 'target' && tools.cargo
+      ? { kind: 'cmd', key: 'cargo-clean', arg: join(a.project, 'Cargo.toml') }
+      : { kind: 'trash', path: a.path },
+  };
+}
+
+/**
+ * Worktree: só sai pelo `git worktree remove` (sem --force), que recusa se houver mudança.
+ * @param {string} wt @param {number} lastUsed @param {boolean} idle @param {number} total tamanho inteiro @param {number} inner já contado em pastas geradas
+ * @returns {Promise<import('../../types.js').Item | null>}
+ */
+async function worktreeItem(wt, lastUsed, idle, total, inner) {
+  const main = await worktreeMain(wt).catch(() => null);
+  if (!main) return null;
+  const pointer = (await readFile(join(wt, '.git'), 'utf8')).trim().slice('gitdir: '.length);
+  const locked = await exists(join(pointer, 'locked'));
+  const dirty = (await run('git', ['-C', wt, 'status', '--porcelain'], { timeout: 20_000 }).catch(() => 'x')).trim() !== '';
+  const secrets = (await exists(join(wt, '.env'))) || (await exists(join(wt, '.env.local')));
+  const blocked = locked || dirty;
+  return {
+    id: `worktree:${wt}`, name: basename(wt), detail: tilde(wt), path: wt, lastUsed,
+    // A lista não conta duas vezes o que já aparece como node_modules/.next dentro dela; remover libera tudo.
+    size: Math.max(0, total - inner), freeable: blocked ? 0 : total, safe: false, inUse: blocked || !idle,
+    note: msg(locked ? 'note.worktreeLocked' : dirty ? 'note.worktreeDirty' : secrets ? 'note.worktreeEnv' : idle ? 'note.worktree' : 'note.worktreeActive'),
+    action: blocked ? null : { kind: 'cmd', key: 'git-worktree-remove', arg: wt },
+  };
+}
+
 /** @param {import('../../types.js').ScanContext} ctx */
 export async function scan(ctx) {
-  const folders = await findNodeModules(ctx.home);
-  if (!folders.length) return null;
+  const { artifacts, worktrees } = await findArtifacts(ctx.home);
+  if (!artifacts.length && !worktrees.length) return null;
 
-  const projects = folders.map(dirname);
+  const projects = [...new Set([...artifacts.map((a) => a.project), ...worktrees])];
   const last = groupActivity(new Map(await Promise.all(projects.map(async (p) => /** @type {[string, number]} */ ([p, await lastActivity(p)])))));
+  const idle = (/** @type {string} */ p) => Date.now() - (last.get(p) ?? 0) >= ctx.staleDays * DAY;
 
-  // Tamanho só muda quando o projeto reinstala: reaproveita a medição anterior pela data da instalação.
-  const keys = await Promise.all(folders.map(async (nm) => (await Promise.all(
+  // node_modules só muda quando o projeto reinstala: a chave é a data da instalação.
+  const modules = artifacts.filter((a) => a.kind === 'node_modules').map((a) => a.path);
+  const keys = await Promise.all(modules.map(async (nm) => (await Promise.all(
     ['', ...INSTALL_MARKERS].map((f) => stat(join(nm, f)).then((s) => s.mtimeMs, () => 0)))).join(':')));
-  const stale = folders.filter((nm, i) => ctx.sizeCache[nm]?.key !== keys[i]);
-  const measured = await du(stale);
-  folders.forEach((nm, i) => { if (measured.has(nm)) ctx.sizeCache[nm] = { key: keys[i], size: measured.get(nm) ?? 0 }; });
-  for (const nm of Object.keys(ctx.sizeCache)) if (nm.endsWith('/node_modules') && !folders.includes(nm)) delete ctx.sizeCache[nm];
+  const measured = await du(modules.filter((nm, i) => ctx.sizeCache[nm]?.key !== keys[i]));
+  modules.forEach((nm, i) => { if (measured.has(nm)) ctx.sizeCache[nm] = { key: keys[i], size: measured.get(nm) ?? 0 }; });
+  // As outras pastas geradas e as worktrees usam a impressão digital de dois níveis.
+  await Promise.all([...artifacts.filter((a) => a.kind !== 'node_modules').map((a) => a.path), ...worktrees]
+    .map((p) => cachedSize(p, ctx.sizeCache)));
+  const present = new Set([...artifacts.map((a) => a.path), ...worktrees]);
+  for (const p of Object.keys(ctx.sizeCache)) if (ARTIFACTS.has(basename(p)) && !present.has(p)) delete ctx.sizeCache[p];
 
-  const items = await Promise.all(folders.map(async (nm) => {
-    const project = dirname(nm);
-    const lastUsed = last.get(project) ?? 0;
-    const idle = Date.now() - lastUsed >= ctx.staleDays * DAY;
-    // pnpm e bun clonam arquivos do store (APFS): apagar a pasta devolve bem menos do que o du mostra.
-    const cloned = (await exists(join(nm, '.pnpm'))) || (await exists(join(project, 'bun.lock'))) || (await exists(join(project, 'bun.lockb')));
-    const size = ctx.sizeCache[nm]?.size ?? 0;
-    return /** @type {import('../../types.js').Item} */ ({
-      id: nm, name: basename(project), detail: tilde(project), path: nm, size, lastUsed,
-      freeable: cloned ? null : size, safe: idle, inUse: !idle,
-      note: !idle ? 'Projeto ativo. Depois de limpar, rode pnpm install.'
-        : cloned ? 'Instalado com pnpm ou bun: os arquivos são compartilhados com o cache, então o ganho real aparece depois.' : undefined,
-      action: { kind: 'trash', path: nm },
-    });
-  }));
-  return { items: items.filter((i) => i.size > 0) };
+  const tools = { cargo: await has('cargo') };
+  const items = await Promise.all([
+    ...artifacts.map((a) => artifactItem(a, last.get(a.project) ?? 0, idle(a.project), ctx.sizeCache[a.path]?.size ?? 0, tools)),
+    ...worktrees.map((wt) => {
+      const inner = artifacts.filter((a) => a.path.startsWith(`${wt}/`)).reduce((s, a) => s + (ctx.sizeCache[a.path]?.size ?? 0), 0);
+      return worktreeItem(wt, last.get(wt) ?? 0, idle(wt), ctx.sizeCache[wt]?.size ?? 0, inner);
+    }),
+  ]);
+  return { items: items.filter((i) => i !== null && i.size > 0).map((i) => /** @type {import('../../types.js').Item} */ (i)) };
 }

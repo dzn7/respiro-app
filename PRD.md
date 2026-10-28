@@ -35,18 +35,20 @@ Detecta o que existe na máquina. Categoria ausente não aparece.
 
 | Categoria | Origem | Como limpa |
 |---|---|---|
-| Caches de pacotes | pnpm store, metadados do pnpm, npm, yarn, bun, pip | `pnpm store prune`, `npm cache clean --force`, `yarn cache clean`, `bun pm cache rm`, `pip3 cache purge`; metadados do pnpm e cache do bun sem CLI vão para a Lixeira |
-| Docker | containers parados, imagens sem uso, cache de build, volumes sem uso | `docker container rm`, `docker image rm`, `docker builder prune -a -f`, `docker volume rm` (um por vez) |
-| node_modules | projetos sob a pasta pessoal sem atividade há mais de 30 dias (ajustável) | Lixeira |
-| Xcode | DerivedData, simuladores indisponíveis, cache do Xcode | DerivedData e cache para a Lixeira; simuladores com `xcrun simctl delete unavailable` |
-| Navegadores de teste | revisões do Playwright que nenhuma instalação usa | Lixeira (mesma regra do coletor do Playwright: `.links` + `browsers.json`) |
+| Caches de pacotes | pnpm store, metadados do pnpm, npm, yarn, bun, pip, uv, Go (módulos e build), Cargo (downloads, fontes, git), Gradle (cache e versões do wrapper), Maven, CocoaPods, pub (Dart/Flutter) | `pnpm store prune`, `npm cache clean --force`, `yarn cache clean`, `bun pm cache rm`, `pip3 cache purge`, `uv cache prune`, `go clean -modcache` / `-cache`, `pod cache clean --all`, `dart pub cache clean --force`; sem CLI (Cargo, Gradle, Maven, metadados do pnpm) vão para a Lixeira |
+| Docker | containers parados, imagens sem uso, cache de build, volumes sem uso | `docker container rm`, `docker image rm`, `docker builder prune -a -f`, `docker volume rm` (um por vez); no Docker Desktop, "Devolver espaço ao macOS" roda `docker run --rm --privileged --pid=host docker/desktop-reclaim-space` |
+| Projetos | pastas geradas ao lado do arquivo do projeto (`node_modules`, `.next`, `.nuxt`, `.svelte-kit`, `.turbo`, `.parcel-cache`, `dist`, `build` com `package.json`; `target` com `Cargo.toml`; `.venv`/`venv` com `pyproject.toml`/`requirements.txt`) e worktrees do git, sob a pasta pessoal, parados há mais de 30 dias (ajustável) | Lixeira; `target` com `cargo clean --manifest-path`; worktree com `git worktree remove` (S12) |
+| Xcode e Android | DerivedData, simuladores indisponíveis, cache do Xcode, DeviceSupport antigo (fica o mais novo de cada aparelho), AVDs e system images do Android | Lixeira; simuladores com `xcrun simctl delete unavailable`; AVD com `avdmanager delete avd -n`; system image sem AVD com `sdkmanager --uninstall` |
+| Navegadores de teste | revisões do Playwright que nenhuma instalação usa; versões do Cypress e do Puppeteer (a mais nova fica em uso) | Lixeira (Playwright: mesma regra do coletor dele, `.links` + `browsers.json`) |
 | Homebrew | downloads em cache e versões antigas | `brew cleanup --prune=all` (prévia com `-n`) |
-| Caches e logs de apps | `~/Library/Caches` e `~/Library/Logs`, sem `com.apple.*` e sem o que já está em outra categoria | Lixeira |
+| Caches de apps e editores | `~/Library/Caches` e `~/Library/Logs` (sem `com.apple.*` e sem o que já está em outra categoria), versões obsoletas de extensões do VS Code, Insiders, Cursor e Windsurf (`.obsolete` fora do `extensions.json`), caches e logs de versões antigas das IDEs JetBrains | Lixeira |
 | Lixeira | `~/.Trash` | Finder esvazia (permanente) |
 
 - Aceite: cada categoria mostra espaço ocupado, quanto é seguro liberar e um botão de limpar.
 - Aceite: lista ordenada por tamanho ocupado.
-- Aceite: quando a ferramenta não deixa saber o ganho antes (ex.: `pnpm store prune`), o app diz isso em vez de inventar número e mostra o valor medido depois.
+- Aceite: quando a ferramenta não deixa saber o ganho antes (ex.: `pnpm store prune`, `uv cache prune`), o app diz isso em vez de inventar número e mostra o valor medido depois.
+- Aceite: `dist` e `build` só são seguros quando o git os ignora; fora do git pedem atenção; versionados não aparecem (são código).
+- Aceite: continuam 8 categorias (paleta validada); ecossistema novo entra numa categoria existente.
 
 ### P0 — "Pode ser liberado com segurança"
 Total em destaque = soma dos itens seguros de todas as categorias.
@@ -78,13 +80,29 @@ Sheet com cada item: nome, tamanho, data do último uso quando houver, e o motiv
 - Aceite: pasta criada com sudo (dono root) aparece em "Pedem atenção" com cadeado. Ao limpar, o macOS pede a senha uma vez; o app devolve a pasta ao usuário (`chown`) e só então a manda para a Lixeira. Senha recusada: nada muda.
 
 ### P1 — Ajustes
-- Aceite: Aparência (Automático, Claro, Escuro), Analisar ao abrir, Modo simular, Projetos parados há mais de, Itens ignorados (com "Mostrar de novo") e Acesso Total ao Disco com status e atalho para os Ajustes do Sistema.
+- Aceite: Aparência (Automático, Claro, Escuro), Idioma, Analisar ao abrir, Mostrar na barra de menus, Avisar quando o disco tiver menos de (10/15/20 % ou não avisar), Abrir ao iniciar sessão, Modo simular, Projetos parados há mais de, Itens ignorados (com "Mostrar de novo") e Acesso Total ao Disco com status e atalho para os Ajustes do Sistema.
+
+### P1 — Idiomas
+- Aceite: português (Brasil), inglês e espanhol; "Automático" segue o macOS (fora desses três, inglês). Troca na hora, inclusive o menu do app e o da barra de menus. Pedidos de permissão do macOS (`InfoPlist.strings`) nos três idiomas.
+- Aceite: o main devolve chaves de mensagem, não texto; a análise salva vale em qualquer idioma.
+
+### P1 — Boas-vindas
+- Aceite: no primeiro uso, cinco passos em tela cheia: marca e idioma; o que ele acha (a análise real, ao vivo); seguro por padrão; permissões (status real do Acesso Total ao Disco, barra de menus, abrir ao iniciar); pronto (com o valor encontrado). Teclado (Enter, ←/→), "Pular" sempre visível, movimento reduzido respeitado.
+
+### P1 — Carregamento com a marca
+- Aceite: onde algo carrega aparece o anel do Respiro em movimento, não um espaço vazio: primeira análise (anel com o nome), linhas pendentes, reanálise (anel com o progresso na barra de título) e botão de limpeza em andamento.
+
+### P1 — Barra de menus
+- Aceite: ícone com o anel e o espaço livre (dígitos tabulares), menu com livre/total, quanto dá para liberar e de quando é a análise, Abrir, Analisar agora, Ajustes e Encerrar.
+- Aceite: com a barra ligada, fechar a janela mantém o app rodando e o tira do Dock; abrir volta ao Dock.
+- Aceite: abaixo do limite escolhido, o anel fica colorido e o macOS recebe no máximo um aviso por dia.
 
 ### P1 — Histórico
 - Aceite: lista de limpezas com data, total liberado e total enviado à Lixeira; soma acumulada.
+- Aceite: gráfico do espaço livre (30 dias, 90 dias, 1 ano) com ponto em cada limpeza, dica no hover e nas setas, tabela para leitor de tela. Amostra a cada 6 h e depois de cada limpeza; guarda um ano.
 
 ### P1 — Docker Desktop
-- Aceite: depois de limpar Docker, avisa em uma frase que o disco virtual do Docker Desktop pode levar alguns minutos para devolver o espaço ao macOS.
+- Aceite: depois de limpar Docker, avisa em uma frase que o disco virtual do Docker Desktop pode levar alguns minutos para devolver o espaço ao macOS e oferece "Devolver espaço ao macOS", com confirmação e ganho medido.
 
 ### P1 — Acesso Total ao Disco só se necessário
 - Aceite: o app só pede quando a leitura de `~/.Trash` falha por permissão, explica por que e abre o painel certo dos Ajustes.
@@ -93,7 +111,7 @@ Sheet com cada item: nome, tamanho, data do último uso quando houver, e o motiv
 Vibrancy, semáforos integrados à barra de título, fonte do sistema, claro e escuro automáticos, ⌘R reanalisa, ⌘, abre Preferências.
 
 ### P2 — Depois
-Puppeteer e Cypress, cache do `uv`, `iOS DeviceSupport`, escolha de pastas para buscar projetos, assinatura e notarização.
+Escolha de pastas para buscar projetos, assinatura e notarização (necessárias para a notificação do macOS chegar sempre), atualização automática.
 
 ## Regras de segurança (obrigatórias)
 
@@ -108,12 +126,15 @@ S8. Volumes Docker podem ter bancos de dados: aparecem um a um, com aviso, e cad
 S9. Caches e logs de apps tocados nos últimos 7 dias são "atenção" (o app pode estar usando) e ficam fora do total seguro.
 S10. Proteção é revalidada no momento da limpeza, não só na análise: o que entrou como seguro e ficou ativo nesse meio-tempo não sai.
 S11. Senha de administrador só pelo diálogo nativo do macOS (`osascript … with administrator privileges`), uma vez por limpeza, só para `chown -R` de caminhos que passaram por `trashRule`, e só depois da confirmação. Nada é apagado como root.
+S12. Git só com `git -C <repositório principal> worktree remove <worktree>`, sem `--force`: o git recusa se houver mudança. Worktree travada ou com mudanças não tem ação. Nada que descarte trabalho (reset, clean, checkout, branch -D) entra na tabela. Worktree com `.env` avisa que arquivos ignorados saem junto e não vão para a Lixeira.
 
 ## Limites conhecidos
 
-- **Clones do APFS.** pnpm e bun clonam arquivos do store para `node_modules`. Apagar uma cópia não devolve blocos que outra ainda usa. No QA, `pnpm store prune` removeu 3,7 GB do store e o disco ganhou 0,16 GB. Por isso o app mede o espaço livre antes e depois e mostra os dois números, e os `node_modules` instalados por pnpm/bun aparecem sem valor previsto.
+- **Clones do APFS.** pnpm, bun e uv clonam arquivos do store para `node_modules`. Apagar uma cópia não devolve blocos que outra ainda usa. No QA, `pnpm store prune` removeu 3,7 GB do store e o disco ganhou 0,16 GB. Por isso o app mede o espaço livre antes e depois e mostra os dois números, e os `node_modules` instalados por pnpm/bun aparecem sem valor previsto.
 - **Docker Desktop.** O espaço volta para o disco virtual na hora e para o macOS alguns minutos depois.
 - **Lixeira.** Item enviado à Lixeira só libera espaço quando ela é esvaziada.
+- **uv.** O cache do uv pode passar de 100 GB; `uv cache prune` tira só o que nenhum ambiente alcança, e o ganho real aparece depois. `.venv` criado pelo uv aparece sem valor previsto.
+- **Notificações.** App sem assinatura pode não receber notificação do macOS; o aviso de disco cheio também aparece no anel colorido da barra de menus.
 - **Espaço purgável.** O "livre" vem de `statfs` e não soma o espaço purgável que o Finder conta; pode sair menor que o do Finder.
 
 ## Métricas de sucesso

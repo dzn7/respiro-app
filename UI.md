@@ -102,7 +102,7 @@ Regra de uso: texto que a pessoa pode copiar e colar no Terminal vai em mono; o 
 
 ### Translucidez
 
-- Janela com `vibrancy: 'under-window'` e `visualEffectState: 'followWindow'`. O `--canvas` é aplicado com 82 % de opacidade (`--canvas-tint`), então o desktop aparece borrado só como temperatura de cor e o contraste continua previsível.
+- Janela com `vibrancy: 'under-window'` e `visualEffectState: 'followWindow'`. No claro, o `--canvas` é aplicado com 82 % de opacidade (`--canvas-tint`), então o desktop aparece borrado só como temperatura de cor. No escuro, `--canvas-tint` é opaco: com transparência, o material da janela clareia o fundo e o modo escuro vira cinza médio.
 - Superfícies (`--surface`, `--popover`) são opacas. Texto nunca fica direto sobre a vibrancy sem o tint.
 - `prefers-reduced-transparency: reduce` → `--canvas-tint` vira opaco.
 - `prefers-contrast: more` → separadores e bordas de controle sobem para 30 % de opacidade.
@@ -134,13 +134,19 @@ Phosphor Icons, peso **regular**, SVG inline gerado por `npm run icons` a partir
 
 Todos os interativos estão em `src/renderer/controls.js` (genéricos) e `app.js` (do Respiro). `npm run check` reprova `select`, `details`, `summary` e `input` de checkbox, radio, range, color ou date no renderer; `input` de texto (busca) é permitido.
 
+### Marca em movimento (`loader.js`)
+- O anel aberto do ícone (`pathLength` 100: arco de 89, abertura de 11 à direita, ponta redonda, `--accent`) é o indicador de carregamento do app. Em espera ele **respira**: gira uma volta a cada 2,4 s e o arco abre e fecha (89 → 54) a cada 1,2 s.
+- `ring(size)`: linha pendente (12 px), botão ocupado (14 px), barra de título (18 px, com trilho `--separator` e o arco crescendo com as categorias prontas). Anéis recriados a cada render seguem o mesmo relógio (`--phase`), sem voltar ao início.
+- `hero(texto)`: o anel se forma girando (escala 0,35 → 1,1 → 1, 900 ms), depois abre espaço e o nome "Respiro" se revela da esquerda para a direita, com a frase embaixo.
+- Movimento reduzido: anel parado, nome e frase aparecem direto.
+
 ### Carregamento (primeira análise)
-- Sem resultado salvo, a lista vira uma **lista de verificação** com as 8 categorias na ordem fixa, nas mesmas posições do resultado. Pendente: ícone em cinza a 35 % e spinner de 11 px + "Analisando…". Encontrada: o ícone ganha cor e a linha mostra o resumo e o tamanho, no lugar. Ausente: "Não encontrado neste Mac", esmaecida. Nada muda de lugar enquanto analisa.
-- O número "Pode ser liberado" é um placeholder `--surface-sunken` com a altura do display, respirando de leve (opacidade 1 → 0,45, 1,4 s); nota "Somando o que dá para liberar sem risco…". A seção tem altura mínima; a legenda reserva duas linhas.
+- Sem resultado salvo, a lista vira uma **lista de verificação** com as 8 categorias na ordem fixa, nas mesmas posições do resultado. Pendente: ícone em cinza a 35 % e anel de 12 px + "Analisando…". Encontrada: o ícone ganha cor e a linha mostra o resumo e o tamanho, no lugar. Ausente: "Não encontrado neste Mac", esmaecida. Nada muda de lugar enquanto analisa.
+- No lugar do número "Pode ser liberado" fica o `hero` com "Somando o que dá para liberar sem risco…" (mesmo elemento entre renders, a abertura não recomeça). A seção tem altura mínima; a legenda reserva duas linhas.
 - A barra começa com "Ocupado" e "Livre"; cada categoria encontrada se separa do "Ocupado" deslizando.
 - No fim, a lista de verificação vira a lista final (ordenada por tamanho, ausentes somem) numa única View Transition.
-- Com resultado salvo, a tela fica parada durante a reanálise; só a linha de progresso e o rodapé mudam, e o resultado novo entra inteiro no fim.
-- O spinner é o único movimento em loop do app e só existe durante a análise.
+- Com resultado salvo, a tela fica parada durante a reanálise; só o anel da barra de título e o rodapé mudam, e o resultado novo entra inteiro no fim.
+- O anel é o único movimento em loop do app e só existe enquanto algo carrega (fora o brilho das boas-vindas).
 
 ### Barra de disco segmentada
 - Altura 18 px, raio 5. Segmentos na ordem fixa das categorias, depois "Sistema e outros" (`--segment-system`); o espaço livre é o trilho `--surface-sunken` à direita.
@@ -242,7 +248,7 @@ Estados: hover, pressionado (brilho −6 %), foco visível, ocupado ("Liberando�
 
 ### Progresso
 - Análise: linha de 2 px sob a barra de título com progresso real (categorias concluídas ÷ total), que some ao terminar; rodapé "Analisando… 3 de 8".
-- Limpeza: botão ocupado ("Liberando…"); Esc e clique fora ficam bloqueados até o fim.
+- Limpeza: botão ocupado com anel de 14 px ("Liberando…"); Esc e clique fora ficam bloqueados até o fim.
 
 ### Vazio e erro
 - Vazio: "Nada para liberar agora." Sem ilustração.
@@ -250,10 +256,30 @@ Estados: hover, pressionado (brilho −6 %), foco visível, ocupado ("Liberando�
 
 ### Ajustes (⌘,) e Histórico (⌘Y)
 - Ajustes em três seções com rótulo (`group-label`), tudo salva na hora:
-  - **Geral:** Aparência (segmentado Automático/Claro/Escuro; aplica `nativeTheme.themeSource`, a vibrancy acompanha) e Analisar ao abrir (switch).
+  - **Geral:** Aparência (segmentado Automático/Claro/Escuro; aplica `nativeTheme.themeSource`, a vibrancy acompanha), Idioma (select: Automático, Português (Brasil), English, Español, cada um no próprio idioma), Analisar ao abrir, Mostrar na barra de menus, Abrir ao iniciar sessão (switches) e Avisar quando o disco tiver menos de (select: Não avisar, 10/15/20 % livre).
   - **Limpeza:** Modo simular (switch), Projetos parados há mais de (select 30/60/90 dias), Itens ignorados (lista com "Mostrar de novo"; vazio: "Nenhum. Use o menu ··· de um item para ignorá-lo.").
   - **Permissões:** Acesso Total ao Disco com status "Concedido" (`check-circle`) ou "Abrir Ajustes do Sistema…", e a frase de que pastas criadas com sudo pedem a senha na hora de limpar.
-- Histórico: total removido em `--type-display`, aumento medido do espaço livre abaixo, lista por data.
+- Histórico: gráfico do espaço livre no topo, depois total removido em `--type-display`, aumento medido do espaço livre abaixo, lista por data.
+
+### Gráfico do espaço livre (`chart.js`)
+- Linha de 2 px em `--chart-line` com área `--chart-fill`; ponto de 8 px com anel `--surface` de 2 px em cada limpeza. Cor validada com o validador da skill `dataviz` contra `--surface` no claro (`#b4552f`) e no escuro (`#d8774e`; o `--accent` do escuro sai da faixa de luminosidade).
+- Eixo Y com três linhas de grade (0, meio, teto "redondo" 1/2/5 × 10ⁿ) em `--separator`; rótulos e datas em `--text-secondary`, `--type-footnote`, dígitos tabulares. Texto nunca na cor da série.
+- Segmentado 30 dias / 90 dias / 1 ano ao lado do título "Espaço livre".
+- Hover e setas (Home/End) mostram cruz pontilhada, ponto vazado e dica (valor em `--type-headline`, data, "Limpeza" com bolinha). Tabela `sr-only` com todas as amostras. Menos de duas amostras: frase explicando que o gráfico se completa com o tempo.
+
+### Boas-vindas (`welcome.js`)
+- `<dialog>` em tela cheia sobre a janela, só no primeiro uso (`prefs.onboarded`), fundo `--canvas`, área de arrastar de 44 px no topo, "Pular" no canto direito.
+- Cinco passos, coluna de 460 px centralizada: arte → título (30/36, `--track-display`) → texto (15/22, `--text-secondary`) → controles. Rodapé: pontos (o atual vira pílula de 20 px em `--accent`), "Voltar" e o botão principal.
+  1. **Marca:** anel de 104 px se formando sobre um brilho radial (`--accent-glow`) que respira; seletor de idioma.
+  2. **O que ele acha:** as 8 categorias em cartões (4 × 2) entrando em cascata, com a análise real ao vivo (anel → tamanho ou "Não encontrado").
+  3. **Seguro por padrão:** três linhas de exemplo; "Cache do npm" voa para a Lixeira em loop, "Documentos" e "Container rodando" ficam com cadeado. Quatro garantias com ícone.
+  4. **Permissões:** selo com `shield-check`; cartão com o status real do Acesso Total ao Disco (atualiza ao voltar dos Ajustes do Sistema), barra de menus e abrir ao iniciar.
+  5. **Pronto:** o anel fecha num círculo e aparece um visto; frase com o valor real encontrado (ou "a análise termina em instantes").
+- Troca de passo: sai para o lado (`--dur-exit`) e o próximo entra do outro (`--dur-enter`). Teclado: Enter no botão principal (já focado), ←/→. Esc não fecha. Movimento reduzido: tudo parado, só troca.
+
+### Barra de menus (`tray.js`)
+- Ícone template de 18 pt desenhado em código (o mesmo anel do logo) com o espaço livre ao lado em dígitos tabulares. Disco abaixo do limite: o anel deixa de ser template e fica `--danger`.
+- Menu nativo: "X livres de Y", aviso de pouco espaço, "Dá para liberar X · análise há…", Abrir Respiro, Analisar agora, Ajustes…, Encerrar Respiro.
 
 ## Movimento
 

@@ -49,7 +49,8 @@ for (const file of files) {
     for (const m of text.matchAll(NATIVE_CONTROL)) fail(file, text, m.index, `controle nativo proibido: "${m[0]}" (use controls.js, UI.md › Componentes)`);
   }
 
-  if (file.startsWith('src/') && file !== CLEANER) {
+  // Dicionários de idioma são texto de tela ("Clean", "Empty Trash"), não código que apaga.
+  if (file.startsWith('src/') && file !== CLEANER && !file.startsWith('src/shared/locales/')) {
     for (const re of [DELETE_CALL, DELETE_WORD]) {
       for (const m of text.matchAll(re)) fail(file, text, m.index, `exclusão fora de ${CLEANER}: "${m[0]}" (PRD › S1)`);
     }

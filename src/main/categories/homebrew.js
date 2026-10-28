@@ -1,11 +1,10 @@
 // Downloads em cache e versões antigas. A lista vem da prévia oficial (`brew cleanup -n`).
 import { basename } from 'node:path';
 import { brewPreview } from '../cleaner.js';
+import { msg } from '../../shared/i18n.js';
 import { has, parseSize, tilde } from '../sys.js';
 
 export const id = 'homebrew';
-export const name = 'Homebrew';
-export const blurb = 'Instaladores baixados e versões antigas de fórmulas. O Homebrew baixa de novo se precisar.';
 
 /**
  * "Would remove: /opt/homebrew/Cellar/x/1.0 (12 files, 3.4MB)" → partes. Puro, testado.
@@ -23,7 +22,7 @@ export async function scan() {
   if (!size) return null;
   return {
     items: [{
-      id: 'downloads', name: 'Downloads e versões antigas', detail: `${parts.length} itens`, size, freeable: size, safe: true,
+      id: 'downloads', name: msg('name.brewDownloads'), detail: msg('detail.items', { n: parts.length }), size, freeable: size, safe: true,
       parts: parts.sort((a, b) => b.size - a.size).map((p) => ({ name: p.name.includes('/Cellar/') ? tilde(p.name) : basename(p.name), size: p.size })),
       action: /** @type {const} */ ({ kind: 'cmd', key: 'brew-cleanup' }),
     }],

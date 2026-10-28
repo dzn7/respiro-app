@@ -7,12 +7,13 @@ import * as nodeModules from './categories/node-modules.js';
 import * as packages from './categories/packages.js';
 import * as trash from './categories/trash.js';
 import * as xcode from './categories/xcode.js';
+import { msg } from '../shared/i18n.js';
 import { commandLine } from './cleaner.js';
 import { movable } from './sys.js';
 
 /**
  * @typedef {import('../types.js').Category} Category
- * @typedef {{ id: import('../types.js').CategoryId, name: string, blurb: string,
+ * @typedef {{ id: import('../types.js').CategoryId,
  *   scan: (ctx: import('../types.js').ScanContext) => Promise<import('../types.js').CategoryScan | null> }} CategoryModule
  */
 
@@ -43,14 +44,14 @@ export async function scanCategories(ctx, onProgress, only) {
       console.log(`[scan] ${mod.id} ${Date.now() - t0} ms`);
     } catch (e) {
       console.error(`[scan] ${mod.id}:`, e);
-      result = { status: 'error', message: 'Não foi possível analisar agora.', items: [] };
+      result = { status: 'error', message: msg('error.scan'), items: [] };
     }
     done += 1;
     if (!result) return onProgress({ done, total: mods.length, absent: mod.id });
     // Pasta do root (criada com sudo): continua limpável, mas pede atenção e a senha do macOS.
     await Promise.all(result.items.map(async (item) => {
       if (item.action?.kind === 'trash' && !(await movable(item.action.path))) {
-        Object.assign(item, { admin: true, safe: false, note: 'Criado pelo administrador (sudo). Para limpar, o macOS pede sua senha.' });
+        Object.assign(item, { admin: true, safe: false, note: msg('note.admin') });
       }
     }));
     for (const item of result.items) item.command = commandLine(item.action);
@@ -58,7 +59,7 @@ export async function scanCategories(ctx, onProgress, only) {
     const size = result.size ?? result.items.reduce((sum, i) => sum + i.size, 0);
     /** @type {Category} */
     const category = {
-      id: mod.id, name: mod.name, blurb: mod.blurb, status: result.status ?? 'ok', message: result.message, notice: result.notice, size,
+      id: mod.id, status: result.status ?? 'ok', message: result.message, notice: result.notice, size,
       // Seguro, depois atenção, depois em uso; dentro de cada grupo, maior primeiro.
       items: result.items.filter((i) => !ctx.ignored.has(`${mod.id}/${i.id}`)).sort((a, b) => rank(a) - rank(b) || b.size - a.size),
     };
