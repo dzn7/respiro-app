@@ -8,16 +8,16 @@ Seu Mac diz que o disco tá cheio e joga a culpa em "Dados do Sistema"?<br>
 O Respiro abre essa caixa-preta e devolve o espaço que seus projetos esqueceram para trás.
 
 [![macOS](https://img.shields.io/badge/macOS-Apple_Silicon-1f1e1b?style=flat-square&logo=apple&logoColor=white)](#instalando)
-[![Versão](https://img.shields.io/badge/versão-0.3.0-b4552f?style=flat-square)](https://github.com/dzn7/respiro-app/releases/latest)
+[![Versão](https://img.shields.io/badge/versão-0.4.0-b4552f?style=flat-square)](https://github.com/dzn7/respiro-app/releases/latest)
 [![Electron](https://img.shields.io/badge/Electron-44-2b2a27?style=flat-square&logo=electron&logoColor=9feaf9)](https://www.electronjs.org/)
 [![Sem telemetria](https://img.shields.io/badge/telemetria-zero-2f7a4f?style=flat-square)](#privacidade)
 [![Licença](https://img.shields.io/badge/licença-proprietária-1f1e1b?style=flat-square)](LICENSE)
 
 ### [Baixar para Mac](https://github.com/dzn7/respiro-app/releases/latest)
 
-<img src="docs/assets/demo.gif" width="820" alt="Demonstração: o Respiro abre, filtra os node_modules em uso, busca por 'app' e simula a limpeza dos caches de pacotes, com o número contando até o total">
+<img src="docs/assets/demo.gif" width="820" alt="Demonstração: o Respiro abre, mostra os projetos parados, revisa o que vai sair e acompanha a limpeza item por item, com o espaço livre subindo">
 
-<sub>Gravado com dados de exemplo e o modo simular ligado. Nada foi apagado nessa brincadeira.</sub>
+<sub>Gravado com dados de exemplo e uma limpeza encenada. Nada foi apagado nessa brincadeira.</sub>
 
 </div>
 
@@ -50,11 +50,15 @@ Na primeira vez, uma apresentação curta de cinco passos mostra o que ele faz e
 <td width="50%"><img src="docs/assets/screenshots/confirm-light.png" alt="Confirmação com a lista do que vai sair"><p align="center"><sub>Antes de apagar, a lista inteira</sub></p></td>
 </tr>
 <tr>
-<td><img src="docs/assets/screenshots/detail-light.png" alt="Detalhe de node_modules em grupos"><p align="center"><sub>Seguros em cima, em uso recolhidos</sub></p></td>
+<td><img src="docs/assets/screenshots/detail-light.png" alt="Detalhe de Projetos em grupos"><p align="center"><sub>Seguros em cima, em uso recolhidos</sub></p></td>
 <td><img src="docs/assets/screenshots/docker-dark.png" alt="Detalhe do Docker"><p align="center"><sub>Docker, com volume um por vez</sub></p></td>
 </tr>
 <tr>
-<td><img src="docs/assets/screenshots/loading-light.png" alt="Primeira análise como lista de verificação"><p align="center"><sub>Primeira análise, item por item</sub></p></td>
+<td><img src="docs/assets/screenshots/cleaning-light.png" alt="Página da limpeza com o espaço livre subindo e a lista de tarefas"><p align="center"><sub>A limpeza acontecendo, item por item</sub></p></td>
+<td><img src="docs/assets/screenshots/history-dark.png" alt="Histórico com o gráfico do espaço livre"><p align="center"><sub>Histórico com o gráfico do espaço livre</sub></p></td>
+</tr>
+<tr>
+<td><img src="docs/assets/screenshots/welcome-light.png" alt="Boas-vindas do primeiro uso"><p align="center"><sub>Primeira abertura</sub></p></td>
 <td><img src="docs/assets/screenshots/settings-dark.png" alt="Ajustes"><p align="center"><sub>Ajustes</sub></p></td>
 </tr>
 </table>
@@ -134,7 +138,6 @@ Por enquanto o build é para Apple Silicon. Tem Mac Intel? Clone o projeto e rod
 |---|---|---|
 | Acesso Total ao Disco | medir a Lixeira | tudo funciona, só a Lixeira fica sem tamanho |
 | Acesso a Documentos, Mesa e Downloads | achar pastas geradas de projetos guardados ali | ele pula essas pastas |
-| Controlar o Finder | esvaziar a Lixeira quando você manda | a Lixeira fica como está |
 | Senha de administrador | devolver para você uma pasta criada com `sudo` | aquele item não é limpo e nada muda |
 
 ## Atalhos

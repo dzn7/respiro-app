@@ -50,7 +50,6 @@
   --knob: #fffefb;
   --popover: #fffefb;
   --selection: rgb(180 85 47 / .12);
-  --accent-glow: rgb(180 85 47 / .16);
   /* Série do gráfico: validada (dataviz) contra --surface no claro e no escuro. */
   --chart-line: #b4552f;
   --chart-fill: rgb(180 85 47 / .10);
@@ -96,7 +95,6 @@
     --knob: #f2efe8;
     --popover: #3a3934;
     --selection: rgb(229 138 98 / .18);
-    --accent-glow: rgb(229 138 98 / .14);
     --chart-line: #d8774e;
     --chart-fill: rgb(216 119 78 / .14);
 
@@ -104,6 +102,19 @@
     --shadow-sheet: 0 24px 64px -12px rgb(0 0 0 / .5), 0 0 0 .5px rgb(255 255 255 / .1);
     --shadow-popover: 0 10px 32px -8px rgb(0 0 0 / .55), 0 0 0 .5px rgb(255 255 255 / .12);
   }
+}
+
+/* Pílula do topo (island): preta nos dois temas, como a Dynamic Island. */
+:root {
+  --island: #0a0a0a;
+  --island-text: #f5f3ee;
+  --island-muted: rgb(245 243 238 / .62);
+  --island-track: rgb(245 243 238 / .16);
+  --island-chip: rgb(245 243 238 / .14);
+  --island-chip-hover: rgb(245 243 238 / .22);
+  --island-accent: #e58a62;
+  --island-ok: #7fbf95;
+  --island-shadow: 0 10px 30px -10px rgb(0 0 0 / .55), 0 0 0 .5px rgb(255 255 255 / .06);
 }
 
 @media (prefers-reduced-transparency: reduce) {

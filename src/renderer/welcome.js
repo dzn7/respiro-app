@@ -34,8 +34,10 @@ export function openWelcome(c) {
   accessAtStart = c.state.fullDiskAccess;
   const d = dialog();
   d.onkeydown = onKey;
-  // Esc não fecha por engano: "Pular" está sempre à vista.
+  // Esc não fecha por engano ("Pular" está sempre à vista). O Chromium ignora preventDefault no cancel sem
+  // interação recente, então o Esc é barrado no teclado e o diálogo volta se fechar por outro caminho.
   d.oncancel = (e) => e.preventDefault();
+  d.onclose = () => { if (!ctx.state.prefs.onboarded && d.isConnected && !finishing) d.showModal(); };
   window.addEventListener('focus', refreshAccess);
   d.replaceChildren(...frame());
   d.showModal();
@@ -94,7 +96,10 @@ async function go(dir) {
   moving = false;
 }
 
+let finishing = false;
+
 async function finish() {
+  finishing = true;
   const d = dialog();
   window.removeEventListener('focus', refreshAccess);
   ctx.state.prefs = await ctx.api.setPrefs({ onboarded: true });
@@ -110,6 +115,7 @@ async function finish() {
 function onKey(e) {
   const target = /** @type {HTMLElement} */ (e.target);
   if (target.closest('[aria-haspopup], [role="listbox"]')) return;
+  if (e.key === 'Escape') { e.preventDefault(); return; }
   if (e.key === 'ArrowRight') { e.preventDefault(); if (step < STEPS.length - 1) go(1); }
   if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
 }
@@ -132,7 +138,7 @@ function content() {
         { value: /** @type {import('../types.js').LocalePref} */ ('system'), label: t('lang.system') },
         ...Object.entries(LANGUAGE_NAMES).map(([value, label]) => ({ value: /** @type {import('../types.js').LocalePref} */ (value), label })),
       ] });
-    return page([h('span', { class: 'welcome-glow' }), ring(104)], t('welcome.brand.title'),
+    return page([ring(104)], t('welcome.brand.title'),
       h('p', { class: 'welcome-text' }, t('welcome.brand.text')),
       h('div', { class: 'welcome-field' }, h('span', { id: 'welcome-language' }, t('welcome.language')), language));
   }
@@ -174,7 +180,7 @@ function content() {
       h('div', {}, h('span', { class: 'setting-label', id }, label), h('p', { class: 'setting-text', id: `${id}-text` }, text)),
       toggle({ checked: Boolean(prefs[key]), labelledBy: id, describedBy: `${id}-text`,
         onChange: async (on) => { ctx.state.prefs = await ctx.api.setPrefs({ [key]: on }); } }));
-    return page([h('span', { class: 'welcome-glow' }), h('span', { class: 'access-badge' }, svg('shield-check', 44))], t('welcome.access.title'),
+    return page([h('span', { class: 'access-badge' }, svg('shield-check', 44))], t('welcome.access.title'),
       h('p', { class: 'welcome-text' }, t('welcome.access.text')),
       h('div', { class: 'welcome-card' },
         h('div', { class: 'setting' },
@@ -185,7 +191,7 @@ function content() {
         option('welcome-login', t('welcome.access.login'), t('welcome.access.loginText'), 'openAtLogin')));
   }
 
-  return page([h('span', { class: 'welcome-glow' }), ring(104), h('span', { class: 'ready-check' }, svg('check', 40))], t('welcome.ready.title'),
+  return page([ring(104), h('span', { class: 'ready-check' }, svg('check', 40))], t('welcome.ready.title'),
     h('p', { class: 'welcome-text', 'data-live': 'ready', 'aria-live': 'polite' }, readyText()));
 }
 

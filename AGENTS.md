@@ -9,6 +9,7 @@ Electron 44, JavaScript ESM com JSDoc checado por `tsc` (sem build), HTML/CSS/JS
 ```
 src/main/main.js          janela, menu, IPC, ciclo de vida com a barra de menus, amostras do gráfico
 src/main/tray.js          ícone da barra de menus (anel desenhado em código), menu e aviso de disco cheio
+src/main/island.js        pílula do topo (estilo Dynamic Island) com island.cjs e renderer/island.*
 src/main/preload.cjs      ponte segura (window.respiro)
 src/main/scan.js          roda as categorias e o disco
 src/main/categories/*.js  uma categoria por arquivo (só leitura)

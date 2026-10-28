@@ -12,7 +12,7 @@ export type CommandKey =
   | 'docker-builder-prune' | 'docker-rm-container' | 'docker-rm-image' | 'docker-volume-rm'
   | 'simctl-delete-unavailable' | 'empty-trash'
   | 'uv-prune' | 'go-clean-modcache' | 'go-clean-cache' | 'pod-cache-clean' | 'dart-pub-cache-clean'
-  | 'cargo-clean' | 'git-worktree-remove' | 'avd-delete' | 'sdk-uninstall' | 'docker-reclaim';
+  | 'cargo-clean' | 'git-worktree-remove' | 'avd-delete' | 'sdk-uninstall' | 'docker-reclaim' | 'uv-prune-force';
 
 /** null = protegido: aparece, mas não pode ser limpo. */
 export type Action = { kind: 'trash'; path: string } | { kind: 'cmd'; key: CommandKey; arg?: string } | null;
@@ -68,7 +68,7 @@ export interface ScanContext {
   staleDays: number;
   /** refs "categoria/item" que a pessoa mandou ignorar */
   ignored: Set<string>;
-  sizeCache: Record<string, { key: string; size: number }>;
+  sizeCache: Record<string, { key: string; size: number; at?: number }>;
 }
 
 export interface Disk { name: string; total: number; free: number }
@@ -101,6 +101,16 @@ export interface Prefs {
   lowDiskAlert: 0 | 10 | 15 | 20;
 }
 
+/** Andamento da limpeza, do main para a tela. 'disk' é o ganho do espaço livre medido até agora. */
+export type CleanEvent =
+  | { kind: 'password' }
+  | { kind: 'start'; ref: string }
+  | { kind: 'output'; ref: string; line: string }
+  | { kind: 'done'; ref: string; freed: number | null; trashed: number }
+  | { kind: 'failed'; ref: string; message: Msg }
+  | { kind: 'skipped'; ref: string; message: Msg; retry: boolean }
+  | { kind: 'disk'; gain: number; free: number };
+
 export interface CleanResult {
   simulated: boolean;
   freed: number;
@@ -109,14 +119,20 @@ export interface CleanResult {
   unknown: number;
   done: string[];
   failed: { ref: string; name: Text; message: Msg }[];
+  /** em uso agora: ficaram para depois; `retry` = passa sozinho (o Respiro tenta de novo, ou limpa forçado com aceite) */
+  skipped: { ref: string; name: Text; message: Msg; retry: boolean }[];
   docker: boolean;
   /** quanto o espaço livre do disco mudou (statfs antes/depois); 0 na simulação */
   disk: number;
+  /** espaço livre depois da limpeza */
+  free: number;
 }
 
 export interface HistoryEntry { at: number; freed: number; trashed: number; count: number; disk?: number }
 
 export interface State { disk: Disk; scan: Scan | null; history: HistoryEntry[]; samples: Sample[]; prefs: Prefs; scanning: boolean; fullDiskAccess: boolean;
+  /** idioma resolvido pelo main */
+  locale: 'pt-BR' | 'en' | 'es';
   /** categorias que a análise procura, na ordem fixa (para o estado de carregamento) */
   catalog: { id: CategoryId }[] }
 
@@ -125,12 +141,14 @@ export type Progress = { done: number; total: number; category?: Category; absen
 export interface RespiroApi {
   state(): Promise<State>;
   scan(): Promise<Scan>;
-  clean(refs: string[]): Promise<CleanResult>;
+  clean(refs: string[], opts?: { force?: string[] }): Promise<CleanResult>;
   setPrefs(prefs: Partial<Prefs>): Promise<Prefs>;
   reveal(ref: string): Promise<void>;
   open(target: 'full-disk-access' | 'docker'): Promise<void>;
   onProgress(cb: (p: Progress) => void): void;
-  onCommand(cb: (command: 'rescan' | 'preferences' | 'history') => void): void;
+  onCommand(cb: (command: 'rescan' | 'preferences' | 'history' | 'show-cleaning') => void): void;
+  cleaningBackground(on: boolean): Promise<void>;
+  onCleanProgress(cb: (e: CleanEvent) => void): void;
 }
 
 declare global {

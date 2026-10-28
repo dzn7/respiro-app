@@ -1,7 +1,8 @@
 // Tela principal e o sheet único (detalhe → confirmação → resultado). Texto dinâmico entra só por textContent.
 import { button, checkbox, disclosure, h, installTooltips, menu, searchField, segmented, select, svg, toggle } from './controls.js';
-import { LANGUAGE_NAMES, formatBytes, formatDateTime, has, resolveLocale, setLocale, t, template, tx } from '../shared/i18n.js';
+import { LANGUAGE_NAMES, formatBytes, formatDateTime, has, resolveLocale, setLocale, t, tx } from '../shared/i18n.js';
 import { freeChart } from './chart.js';
+import { cleaningBusy, cleaningEvent, failCleaning, finishCleaning, openCleaning, reopenCleaning } from './cleaning.js';
 import { hero, ring } from './loader.js';
 import { openWelcome, refreshWelcome } from './welcome.js';
 import { countTo, leave, morph, swap } from './motion.js';
@@ -33,9 +34,18 @@ const state = {
   progress: { done: 0, total: 0 },
   /** @type {import('../types.js').HistoryEntry[]} */ history: [],
   /** @type {import('../types.js').Sample[]} */ samples: [],
+  /** Idioma que o main resolveu para o sistema (o menu usa o mesmo). */
+  systemLocale: navigator.language,
   /** @type {import('../types.js').Prefs} */ prefs: { simulate: false, staleDays: 30, theme: 'system', scanOnLaunch: true, ignored: [], locale: 'system',
     onboarded: true, showInMenuBar: true, openAtLogin: false, lowDiskAlert: 10 },
 };
+
+/** Pílula "Limpando 2 de 5" da barra de título, só com a limpeza em segundo plano. @param {string | null} text */
+function cleanPill(text) {
+  const pill = byId('clean-pill');
+  pill.hidden = text === null;
+  if (text !== null) { /** @type {HTMLElement} */ (pill.querySelector('span:last-child')).textContent = text; pill.setAttribute('aria-label', `${text}. ${t('clean.pillLabel')}`); }
+}
 
 /** @param {string} id */
 const byId = (id) => /** @type {HTMLElement} */ (document.getElementById(id));
@@ -48,21 +58,12 @@ const catName = (id) => t(`cat.${id}.name`);
 /** Categoria do item ignorado: versões antigas guardavam o nome em português. @param {string} value */
 const ignoredCategory = (value) => (has(`cat.${value}.name`) ? catName(value) : value);
 
-/**
- * Frase traduzida com elementos encaixados nos marcadores (ex.: número que conta dentro do texto).
- * @param {string} key @param {Record<string, any>} parts nós ou textos por marcador @param {number} [n]
- */
-function rich(key, parts, n) {
-  return template(key, n).split(/(\{\w+(?:\|\w+)?\})/).filter(Boolean).map((chunk) => {
-    const name = /^\{(\w+)/.exec(chunk)?.[1];
-    return name && name in parts ? parts[name] : chunk;
-  });
-}
 
 /** Aplica o idioma e traduz os textos fixos do index.html. */
 function applyLocale() {
-  setLocale(resolveLocale(state.prefs.locale, navigator.language));
-  document.documentElement.lang = resolveLocale(state.prefs.locale, navigator.language);
+  const locale = resolveLocale(state.prefs.locale, state.systemLocale);
+  setLocale(locale);
+  document.documentElement.lang = locale;
   for (const el of /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('[data-i18n]'))) el.textContent = t(el.dataset.i18n ?? '');
   for (const el of /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('[data-i18n-attr]'))) {
     for (const pair of (el.dataset.i18nAttr ?? '').split(',')) {
@@ -550,25 +551,8 @@ function confirmClean(refs, previous = null) {
     h('span', { class: 'item-size' }, x.item.freeable === null && x.item.action?.kind === 'cmd' ? t('confirm.onClean') : formatBytes(releases(x.item))),
     h('span', { class: 'item-actions' }, x.item.admin && h('span', { class: 'badge', 'data-tip': t('confirm.passwordTip') }, svg('lock-simple', 12), t('confirm.passwordBadge'))))));
 
-  const error = h('p', { class: 'error-text', role: 'alert', hidden: true });
   const cancel = backButton(previous, { 'data-autofocus': commands.length > 0 || inUse > 0 });
-  const run = button(label, async () => {
-    sheet.dataset.busy = '1';
-    run.disabled = cancel.disabled = true;
-    run.replaceChildren(ring(14), h('span', {}, t(simulate ? 'confirm.simulating' : admin ? 'confirm.waitingPassword' : 'confirm.freeing')));
-    try {
-      const result = await api.clean(refs);
-      delete sheet.dataset.busy;
-      showResult(result, origin);
-    } catch (e) {
-      delete sheet.dataset.busy;
-      const reason = String(/** @type {Error} */ (e).message).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
-      error.textContent = t('confirm.error', { reason: has(reason) ? t(reason) : reason });
-      error.hidden = false;
-      run.disabled = cancel.disabled = false;
-      run.textContent = label;
-    }
-  }, 'primary', { 'data-autofocus': commands.length === 0 && inUse === 0 });
+  const run = button(label, () => runClean(targets, origin), 'primary', { 'data-autofocus': commands.length === 0 && inUse === 0 });
 
   /** @param {string} title @param {number} count */
   const groupHead = (title, count) => h('h3', { class: 'group-heading' }, h('span', { class: 'group-label' }, title, h('span', { class: 'count' }, String(count))));
@@ -582,8 +566,7 @@ function confirmClean(refs, previous = null) {
       inUse > 0 && h('p', { class: 'notice tone-attention' }, svg('warning', 14), h('span', {}, t('confirm.inUse', { n: inUse }))),
       admin > 0 && !simulate && h('p', { class: 'notice' }, svg('lock-simple', 14), h('span', {}, t('confirm.admin', { n: admin }))),
       trash.length > 0 && !simulate && h('p', { class: 'notice' }, svg('info', 14), h('span', {}, t('confirm.trashNote'))),
-      unknown > 0 && h('p', { class: 'notice' }, svg('info', 14), h('span', {}, t('confirm.unknownNote'))),
-      error),
+      unknown > 0 && h('p', { class: 'notice' }, svg('info', 14), h('span', {}, t('confirm.unknownNote')))),
     h('div', { class: 'sheet-foot' }, h('span', { class: 'spacer' }), cancel, run));
 }
 
@@ -594,20 +577,8 @@ function confirmClean(refs, previous = null) {
 function confirmIndividual(c, item, previous = null) {
   const isTrash = c.id === 'trash';
   const simulate = state.prefs.simulate;
-  const go = button(t(simulate ? 'individual.simulate' : isTrash ? 'individual.emptyTrash' : 'individual.deleteVolume'), async () => {
-    sheet.dataset.busy = '1';
-    go.disabled = true;
-    go.replaceChildren(ring(14), h('span', {}, t(simulate ? 'confirm.simulating' : 'individual.deleting')));
-    try {
-      const result = await api.clean([ref(c, item)]);
-      delete sheet.dataset.busy;
-      showResult(result, previous && !isTrash ? c.id : null);
-    } catch {
-      delete sheet.dataset.busy;
-      go.textContent = t('individual.retry');
-      go.disabled = false;
-    }
-  }, 'destructive', { disabled: true });
+  const go = button(t(simulate ? 'individual.simulate' : isTrash ? 'individual.emptyTrash' : 'individual.deleteVolume'),
+    () => runClean([{ category: c, item, ref: ref(c, item) }], previous && !isTrash ? c.id : null), 'destructive', { disabled: true });
   const accept = checkbox({ labelledBy: 'accept-label', onChange: (on) => { go.disabled = !on; } });
 
   present('individual-title', previous,
@@ -640,53 +611,41 @@ function applyResult(r, origin) {
   return before ?? null;
 }
 
-/** @param {CleanResult} r @param {string | null} [origin] categoria do detalhe que iniciou a limpeza */
-function showResult(r, origin = null) {
-  /** @type {any[]} */
-  const lines = [];
-  /** @param {IconName} glyph @param {string} tone @param {...any} text */
-  const line = (glyph, tone, ...text) => h('li', { class: tone }, svg(glyph, 16), h('span', {}, ...text));
-  /** Número que conta de zero até o valor. @param {number} bytes */
-  const num = (bytes) => {
-    const el = h('span', { class: 'num' }, formatBytes(0));
-    requestAnimationFrame(() => countTo(el, bytes, formatBytes, 0));
-    return el;
-  };
-  if (r.simulated) {
-    lines.push(line('eye', '', rich(r.unknown ? 'result.wouldFreeUnknown' : 'result.wouldFree', { bytes: num(r.freed) })));
-    if (r.trashed) lines.push(line('trash', '', rich('result.wouldTrash', { bytes: num(r.trashed) })));
-    lines.push(line('check-circle', 'tone-safe', t('result.nothingDeleted')));
-  } else {
-    if (r.freed) {
-      lines.push(line('check-circle', 'tone-safe', rich('result.removed', { bytes: num(r.freed) })));
-      lines.push(line('hard-drives', '', rich('result.diskGain', { bytes: num(Math.max(0, r.disk)) })));
-      if (r.freed - r.disk > Math.max(500e6, r.freed * 0.3)) lines.push(line('info', '', t('result.gap')));
-      else if (r.docker) lines.push(line('info', '', t('result.docker')));
-    }
-    if (r.trashed) lines.push(line('trash', '', rich('result.trashed', { bytes: num(r.trashed) })));
-    if (r.unknown && !r.freed) lines.push(line('check-circle', 'tone-safe', t('result.unknownDone')));
+/**
+ * Limpa com a tela de progresso: a janela inteira acompanha item por item e termina no resultado.
+ * `force`: refs que a pessoa mandou limpar mesmo em uso (cache do uv).
+ * @param {{ category: Category, item: Item, ref: string }[]} targets @param {string | null} origin @param {string[]} [force]
+ */
+async function runClean(targets, origin, force = []) {
+  // Já tem uma limpeza rodando (talvez em segundo plano): mostra ela em vez de começar outra.
+  if (cleaningBusy()) { sheet.close(); reopenCleaning(); return; }
+  openCleaning({ simulate: state.prefs.simulate, free: state.disk?.free ?? 0, catName, status: cleanPill, background: (on) => api.cleaningBackground(on), jobs: targets.map((x) => ({ ref: x.ref, name: tx(x.item.name), category: x.category.id,
+    trash: x.item.action?.kind === 'trash', command: x.item.command ? tx(x.item.command) : null, size: releases(x.item) })) });
+  sheet.close();
+  const settle = () => { if (pendingRender) { pendingRender = false; render(); } };
+  /** @type {CleanResult} */
+  let r;
+  try {
+    r = await api.clean(targets.map((x) => x.ref), { force });
+  } catch (e) {
+    const reason = String(/** @type {Error} */ (e).message).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+    failCleaning(has(reason) ? t(reason) : reason, settle);
+    return;
   }
-  for (const f of r.failed) lines.push(line('warning', 'tone-attention', t('result.failed', { name: tx(f.name), reason: f.message })));
-
   const before = applyResult(r, origin);
   const done = new Set(r.done);
-  // Veio do detalhe e algo saiu: "Ver categoria" volta e mostra os itens saindo. Senão, só fecha.
-  const toDetail = before && origin && state.categories.get(origin)?.items.length
-    ? button(t('result.seeCategory'), () => openDetail(origin, { snapshot: before, leaving: done }), 'secondary') : null;
-  const title = t(r.simulated ? 'result.titleSimulated' : r.done.length ? 'result.titleDone' : 'result.titleNothing');
+  /** @type {{ label: string, run: () => void }[]} */
+  const actions = [];
+  // Veio do detalhe e algo saiu: "Ver categoria" volta e mostra os itens saindo.
+  if (before && origin && state.categories.get(origin)?.items.length) actions.push({ label: t('result.seeCategory'), run: () => openDetail(origin, { snapshot: before, leaving: done }) });
   // Limpou algo do Docker Desktop: o espaço só volta ao macOS depois da ferramenta de devolução.
-  const reclaimButton = r.docker && !r.simulated && !done.has('docker/reclaim') && lookup('docker/reclaim')
-    ? button(t('docker.reclaim'), () => confirmClean(['docker/reclaim']), 'secondary') : null;
-  present('result-title', null,
-    head('result-title', title),
-    h('div', { class: 'sheet-body' }, h('ul', { class: 'result-lines' }, lines)),
-    h('div', { class: 'sheet-foot' }, h('span', { class: 'spacer' }), toDetail, reclaimButton,
-      button(t('sheet.ok'), () => sheet.close(), 'primary', { 'data-autofocus': true })));
-  const summary = r.simulated
-    ? t('result.summarySimulated', { bytes: r.freed })
-    : [r.freed && t('result.summaryRemoved', { bytes: r.freed }), r.trashed && t('result.summaryTrashed', { bytes: r.trashed }),
-      r.failed.length && t('result.summaryFailed', { n: r.failed.length })].filter(Boolean).join(' ');
-  announce(`${title}. ${summary}`);
+  if (r.docker && !r.simulated && !done.has('docker/reclaim') && lookup('docker/reclaim')) actions.push({ label: t('docker.reclaim'), run: () => confirmClean(['docker/reclaim']) });
+  finishCleaning(r, { actions, onClose: settle, onForce: (refs) => {
+    const again = refs.map(lookup).filter((x) => x !== null);
+    if (again.length) runClean(again, origin, refs);
+  } });
+  // Terminou em segundo plano: a lista já atualiza; o resultado fica guardado para a pílula do topo abrir.
+  if (!byId('cleaning').hasAttribute('open')) settle();
 }
 
 async function openPrefs() {
@@ -806,6 +765,7 @@ async function load() {
   const s = await api.state();
   state.disk = s.disk;
   state.prefs = s.prefs;
+  state.systemLocale = s.locale;
   applyLocale();
   state.history = s.history;
   state.samples = s.samples;
@@ -819,10 +779,13 @@ async function load() {
   }
   state.scanning = s.scanning || !s.scan;
   render();
+  const pending = early ?? [];
+  early = null;
+  for (const p of pending) onProgress(p);
   if (!state.prefs.onboarded) {
     openWelcome({ state, api, catName, catIcon, safeTotal: () => freeable(sorted().flatMap(safeItems)),
       changeLocale: async (locale) => { state.prefs = await api.setPrefs({ locale }); applyLocale(); render(); },
-      onClose: (accessChanged) => { if (accessChanged) rescan(); } });
+      onClose: (accessChanged) => { if (accessChanged) { state.scanning = true; renderChrome(); api.scan(); } } });
   }
 }
 
@@ -834,7 +797,16 @@ function rescan() {
   api.scan();
 }
 
+/** Eventos que chegam antes do load() terminar: repetidos depois, senão a lista da primeira análise trava. */
+/** @type {import('../types.js').Progress[] | null} */
+let early = [];
 api.onProgress((p) => {
+  if (early) { early.push(p); return; }
+  onProgress(p);
+});
+
+/** @param {import('../types.js').Progress} p */
+function onProgress(p) {
   if (p.finished) {
     state.scanning = false;
     state.scanAt = p.finished.at;
@@ -867,12 +839,16 @@ api.onProgress((p) => {
     // Já há resultado na tela: ele fica parado; a análise nova entra inteira no fim.
     renderChrome();
   }
-});
+}
+
+api.onCleanProgress(cleaningEvent);
 
 api.onCommand((command) => {
   if (command === 'rescan') rescan();
   else if (command === 'preferences') openPrefs();
   else if (command === 'history') openHistory();
+  // Clique na pílula do topo: mostra a limpeza; se a janela é nova e não tem a página, o histórico.
+  else if (command === 'show-cleaning' && !reopenCleaning()) openHistory();
 });
 
 byId('btn-history').append(svg('clock-counter-clockwise', 18));
@@ -883,6 +859,8 @@ byId('btn-history').addEventListener('click', openHistory);
 byId('btn-rescan').addEventListener('click', rescan);
 byId('btn-prefs').addEventListener('click', openPrefs);
 byId('sim-pill').addEventListener('click', openPrefs);
+byId('clean-pill').prepend(ring(12));
+byId('clean-pill').addEventListener('click', () => reopenCleaning());
 byId('btn-free').addEventListener('click', () => confirmClean(sorted().flatMap((c) => safeItems(c).map((i) => ref(c, i)))));
 byId('content').addEventListener('scroll', (e) => {
   byId('titlebar').toggleAttribute('data-scrolled', /** @type {HTMLElement} */ (e.target).scrollTop > 0);

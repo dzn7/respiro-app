@@ -3,7 +3,7 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { msg } from '../../shared/i18n.js';
-import { cachedSize, du, exists, has, home, newestMtime, run, tilde } from '../sys.js';
+import { cachedSize, du, exists, has, home, newestMtime, openFiles, openInside, run, tilde } from '../sys.js';
 
 export const id = 'node';
 
@@ -83,6 +83,7 @@ export function groupActivity(last) {
  * @param {string} artifact @param {number} staleDays @returns {Promise<import('../../types.js').Msg | null>} motivo para não limpar
  */
 export async function recheck(artifact, staleDays) {
+  if (openInside(artifact, await openFiles())) return msg('refuse.openNow');
   const markers = [...new Set(Object.values(PROJECT_MARKERS).flat())];
   for (let dir = dirname(artifact); dir.startsWith(`${home}/`); dir = dirname(dir)) {
     if (!(await Promise.all(markers.map((m) => exists(join(dir, m))))).some(Boolean)) continue;
@@ -114,13 +115,13 @@ async function gitStatusOf(project, kind) {
 
 /**
  * @param {{ project: string, path: string, kind: string }} a @param {number} lastUsed @param {boolean} idle @param {number} size
- * @param {{ cargo: boolean }} tools
+ * @param {{ cargo: boolean }} tools @param {boolean} busy algum processo usa a pasta agora
  * @returns {Promise<import('../../types.js').Item | null>}
  */
-async function artifactItem(a, lastUsed, idle, size, tools) {
+async function artifactItem(a, lastUsed, idle, size, tools, busy) {
   let freeable = /** @type {number | null} */ (size);
   let note;
-  let safe = idle;
+  let safe = idle && !busy;
   if (a.kind === 'node_modules') {
     // pnpm e bun clonam arquivos do store (APFS): apagar a pasta devolve bem menos do que o du mostra.
     const cloned = (await exists(join(a.path, '.pnpm'))) || (await exists(join(a.project, 'bun.lock'))) || (await exists(join(a.project, 'bun.lockb')));
@@ -139,8 +140,10 @@ async function artifactItem(a, lastUsed, idle, size, tools) {
   } else if (!idle) {
     note = msg('note.buildActive');
   }
+  // Data velha não basta: um servidor rodando do .venv ou do node_modules há semanas usa a pasta agora.
+  if (busy) note = msg('note.openNow');
   return {
-    id: a.path, name: basename(a.project), detail: tilde(a.path), path: a.path, size, lastUsed, freeable, safe, inUse: !idle, note,
+    id: a.path, name: basename(a.project), detail: tilde(a.path), path: a.path, size, lastUsed, freeable, safe, inUse: !idle || busy, note,
     action: a.kind === 'target' && tools.cargo
       ? { kind: 'cmd', key: 'cargo-clean', arg: join(a.project, 'Cargo.toml') }
       : { kind: 'trash', path: a.path },
@@ -150,9 +153,10 @@ async function artifactItem(a, lastUsed, idle, size, tools) {
 /**
  * Worktree: só sai pelo `git worktree remove` (sem --force), que recusa se houver mudança.
  * @param {string} wt @param {number} lastUsed @param {boolean} idle @param {number} total tamanho inteiro @param {number} inner já contado em pastas geradas
+ * @param {boolean} busy algum processo usa a pasta agora
  * @returns {Promise<import('../../types.js').Item | null>}
  */
-async function worktreeItem(wt, lastUsed, idle, total, inner) {
+async function worktreeItem(wt, lastUsed, idle, total, inner, busy) {
   const main = await worktreeMain(wt).catch(() => null);
   if (!main) return null;
   const pointer = (await readFile(join(wt, '.git'), 'utf8')).trim().slice('gitdir: '.length);
@@ -160,11 +164,12 @@ async function worktreeItem(wt, lastUsed, idle, total, inner) {
   const dirty = (await run('git', ['-C', wt, 'status', '--porcelain'], { timeout: 20_000 }).catch(() => 'x')).trim() !== '';
   const secrets = (await exists(join(wt, '.env'))) || (await exists(join(wt, '.env.local')));
   const blocked = locked || dirty;
+  const own = Math.max(0, total - inner);
   return {
     id: `worktree:${wt}`, name: basename(wt), detail: tilde(wt), path: wt, lastUsed,
-    // A lista não conta duas vezes o que já aparece como node_modules/.next dentro dela; remover libera tudo.
-    size: Math.max(0, total - inner), freeable: blocked ? 0 : total, safe: false, inUse: blocked || !idle,
-    note: msg(locked ? 'note.worktreeLocked' : dirty ? 'note.worktreeDirty' : secrets ? 'note.worktreeEnv' : idle ? 'note.worktree' : 'note.worktreeActive'),
+    // Só o que não aparece em outra linha (node_modules/.next listados dentro dela): nada contado duas vezes.
+    size: own, freeable: blocked ? 0 : own, safe: false, inUse: blocked || !idle || busy,
+    note: msg(locked ? 'note.worktreeLocked' : dirty ? 'note.worktreeDirty' : busy ? 'note.openNow' : secrets ? 'note.worktreeEnv' : idle ? 'note.worktree' : 'note.worktreeActive'),
     action: blocked ? null : { kind: 'cmd', key: 'git-worktree-remove', arg: wt },
   };
 }
@@ -191,12 +196,13 @@ export async function scan(ctx) {
   for (const p of Object.keys(ctx.sizeCache)) if (ARTIFACTS.has(basename(p)) && !present.has(p)) delete ctx.sizeCache[p];
 
   const tools = { cargo: await has('cargo') };
-  const items = await Promise.all([
-    ...artifacts.map((a) => artifactItem(a, last.get(a.project) ?? 0, idle(a.project), ctx.sizeCache[a.path]?.size ?? 0, tools)),
-    ...worktrees.map((wt) => {
-      const inner = artifacts.filter((a) => a.path.startsWith(`${wt}/`)).reduce((s, a) => s + (ctx.sizeCache[a.path]?.size ?? 0), 0);
-      return worktreeItem(wt, last.get(wt) ?? 0, idle(wt), ctx.sizeCache[wt]?.size ?? 0, inner);
-    }),
-  ]);
-  return { items: items.filter((i) => i !== null && i.size > 0).map((i) => /** @type {import('../../types.js').Item} */ (i)) };
+  const files = await openFiles();
+  const listed = (await Promise.all(artifacts.map((a) => artifactItem(a, last.get(a.project) ?? 0, idle(a.project), ctx.sizeCache[a.path]?.size ?? 0, tools,
+    openInside(a.path, files))))).filter((i) => i !== null);
+  const trees = await Promise.all(worktrees.map((wt) => {
+    // Desconta só as pastas geradas que viraram linha; as que ficaram de fora (dist versionado) continuam na worktree.
+    const inner = listed.filter((i) => i.path?.startsWith(`${wt}/`)).reduce((s, i) => s + i.size, 0);
+    return worktreeItem(wt, last.get(wt) ?? 0, idle(wt), ctx.sizeCache[wt]?.size ?? 0, inner, openInside(wt, files));
+  }));
+  return { items: [...listed, ...trees].filter((i) => i !== null && i.size > 0).map((i) => /** @type {import('../../types.js').Item} */ (i)) };
 }

@@ -13,6 +13,7 @@
     <span class="titlebar-title">Respiro</span>
     <div class="titlebar-actions">
       <div class="progress" id="progress" role="progressbar" data-i18n-attr="aria-label:progress.label" aria-valuemin="0"></div>
+      <button class="sim-pill clean-pill" id="clean-pill" type="button" hidden><span></span></button>
       <button class="sim-pill" id="sim-pill" type="button" hidden><span data-i18n="titlebar.simPill"></span></button>
       <button class="icon-button" id="btn-history" type="button" data-i18n-attr="aria-label:titlebar.history,data-tip:titlebar.historyTip"></button>
       <button class="icon-button" id="btn-rescan" type="button" data-i18n-attr="aria-label:titlebar.rescan,data-tip:titlebar.rescanTip"></button>
@@ -44,6 +45,7 @@
 
   <dialog class="sheet" id="sheet"></dialog>
   <dialog class="welcome" id="welcome" aria-labelledby="welcome-title"></dialog>
+  <dialog class="cleaning" id="cleaning" aria-labelledby="cleaning-title"></dialog>
   <p class="sr-only" id="announce" aria-live="polite"></p>
 </body>
 </html>

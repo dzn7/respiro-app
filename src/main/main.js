@@ -3,11 +3,12 @@ import { app, BrowserWindow, ipcMain, Menu, nativeTheme, shell } from 'electron'
 import { readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { TRASH } from './categories/trash.js';
-import { msg, resolveLocale, setLocale, t } from '../shared/i18n.js';
+import { getLocale, msg, resolveLocale, setLocale, t } from '../shared/i18n.js';
 import { clean } from './cleaner.js';
 import { CATEGORIES, ORDER, scanCategories } from './scan.js';
 import * as store from './store.js';
 import { diskInfo, home, loadShellPath } from './sys.js';
+import { initIsland, island } from './island.js';
 import * as tray from './tray.js';
 
 /** @typedef {import('../types.js').Scan} Scan */
@@ -33,6 +34,8 @@ function createWindow() {
   });
   win.loadFile(INDEX);
   win.once('ready-to-show', () => win?.show());
+  // Fechar (ou ⌘Q) no meio de uma limpeza perderia histórico e reanálise: espera terminar.
+  win.on('close', (e) => { if (cleaning) e.preventDefault(); });
   win.on('closed', () => {
     win = null;
     // Com a barra de menus ligada, o app continua lá e sai do Dock.
@@ -42,7 +45,7 @@ function createWindow() {
   win.webContents.on('will-navigate', (e) => e.preventDefault());
 }
 
-/** @param {'rescan' | 'preferences' | 'history'} command */
+/** @param {'rescan' | 'preferences' | 'history' | 'show-cleaning'} command */
 const send = (command) => () => win?.webContents.send('respiro:command', command);
 
 /** Abre (ou recria) a janela e volta ao Dock. */
@@ -52,16 +55,19 @@ function showWindow() {
   else { win.show(); win.focus(); }
 }
 
-/** Ações do menu da barra; Ajustes espera a página carregar se a janela acabou de nascer. */
+/** Abre a janela e manda um comando à tela; se a janela acabou de nascer, espera a página carregar. @param {'preferences' | 'show-cleaning'} name */
+function command(name) {
+  const fresh = !win;
+  showWindow();
+  if (fresh) win?.webContents.once('did-finish-load', () => setTimeout(send(name), 300));
+  else send(name)();
+}
+
+/** Ações do menu da barra. */
 const trayActions = {
   open: showWindow,
   scan: () => { startScan(); },
-  preferences: () => {
-    const fresh = !win;
-    showWindow();
-    if (fresh) win?.webContents.once('did-finish-load', () => setTimeout(send('preferences'), 300));
-    else send('preferences')();
-  },
+  preferences: () => command('preferences'),
   quit: () => app.quit(),
   scanning: () => Boolean(scanning),
 };
@@ -127,6 +133,7 @@ function sample(disk, force = false) {
 async function tick() {
   sample(await diskInfo());
   tray.update();
+  retryDeferred();
 }
 
 /** @type {Promise<Scan> | null} */
@@ -134,9 +141,15 @@ let scanning = null;
 /** PATH do shell carrega uma vez; a primeira análise espera por ele. */
 let shellReady = Promise.resolve();
 
+/** Pedido feito durante outra análise: roda quando ela terminar. 'all' = completa. @type {Set<string> | 'all' | null} */
+let queued = null;
+
 /** @param {Set<string>} [only] */
 function startScan(only) {
-  if (scanning) return scanning;
+  if (scanning) {
+    queued = !only || queued === 'all' ? 'all' : new Set([...(queued ?? []), ...only]);
+    return scanning;
+  }
   const t0 = Date.now();
   const { prefs, sizeCache } = store.data;
   const ignored = new Set(prefs.ignored.map((i) => i.ref));
@@ -150,7 +163,13 @@ function startScan(only) {
     console.log(`[scan] ${only ? [...only].join(',') : 'completa'} em ${scan.ms} ms`);
     progress({ done: 1, total: 1, finished: scan });
     return scan;
-  }).finally(() => { scanning = null; tray.update(); });
+  }).finally(() => {
+    scanning = null;
+    tray.update();
+    const next = queued;
+    queued = null;
+    if (next) startScan(next === 'all' ? undefined : next);
+  });
   tray.update();
   return scanning;
 }
@@ -176,10 +195,82 @@ function resolve(ref) {
 }
 
 let cleaning = false;
+/** A pessoa mandou a limpeza para segundo plano: progresso e fim vão para a pílula do topo. */
+let background = false;
+
+/**
+ * Resultado na pílula do topo. @param {import('../types.js').CleanResult} r @param {string} [title]
+ */
+function islandResult(r, title) {
+  const later = !r.done.length && !r.failed.length && r.skipped.length > 0;
+  const tone = r.done.length ? 'ok' : later ? 'later' : 'warn';
+  const detail = r.simulated ? t('result.summarySimulated', { bytes: r.freed + r.trashed })
+    : r.disk > 10e6 ? t('island.gain', { bytes: r.disk })
+      : r.freed ? t('result.summaryRemoved', { bytes: r.freed })
+        : r.trashed ? t('result.summaryTrashed', { bytes: r.trashed })
+          : later ? t('result.summarySkipped', { n: r.skipped.length }) : t('result.summaryFailed', { n: r.failed.length });
+  island({ kind: 'done', tone, detail, action: t('island.view'),
+    title: title ?? t(r.simulated ? 'result.titleSimulated' : tone === 'ok' ? 'island.done' : later ? 'clean.allLater' : 'result.titleNothing') });
+}
+
+/**
+ * Limpa, mede o disco antes e depois, guarda histórico e reanalisa o que mudou. Usada pela tela e pela nova
+ * tentativa automática dos itens que ficaram para depois.
+ * @param {import('./cleaner.js').Target[]} targets @param {Set<string>} force @param {(e: import('../types.js').CleanEvent) => void} progress
+ */
+async function cleanAndRecord(targets, force, progress) {
+  // O que a ferramenta diz que removeu pode não virar espaço livre (clones do APFS, disco virtual do Docker).
+  const freeBefore = (await diskInfo()).free;
+  // Espaço livre ao vivo: statfs é barato.
+  const poll = setInterval(async () => {
+    const { free } = await diskInfo();
+    progress({ kind: 'disk', gain: free - freeBefore, free });
+  }, 700);
+  const result = await clean(targets, { ...store.data.prefs, force }, progress).finally(() => clearInterval(poll));
+  const after = await diskInfo();
+  result.free = after.free;
+  for (const t of targets) if (t.item.path && result.done.includes(t.ref)) delete store.data.sizeCache[t.item.path];
+  if (!result.simulated) result.disk = after.free - freeBefore;
+  // Em uso que passa sozinho: o Respiro tenta de novo no próximo tick.
+  if (!result.simulated) {
+    const retry = result.skipped.filter((s) => s.retry).map((s) => s.ref);
+    store.data.deferred = [...new Set([...store.data.deferred.filter((r) => !result.done.includes(r)), ...retry])];
+  }
+  if (!result.simulated && result.done.length) {
+    store.data.history.unshift({ at: Date.now(), freed: result.freed, trashed: result.trashed, count: result.done.length, disk: result.disk });
+    store.data.history = store.data.history.slice(0, 200);
+    sample(after, true);
+    // Reanalisa as categorias tocadas (a fila espera a análise em curso terminar).
+    startScan(new Set([...result.done.map((r) => r.slice(0, r.indexOf('/'))), 'trash']));
+  }
+  await store.save();
+  return result;
+}
+
+/** Itens que ficaram para depois (cache do uv em uso): tenta de novo, em silêncio, quando liberar. */
+async function retryDeferred() {
+  if (cleaning || !store.data.deferred.length || store.data.prefs.simulate) return;
+  const targets = store.data.deferred.map(resolve).filter((t) => t !== null);
+  if (!targets.length) { store.data.deferred = []; return; }
+  cleaning = true;
+  try {
+    const result = await cleanAndRecord(targets, new Set(), () => {});
+    // Falha de verdade (não "em uso") sai da fila: não insiste para sempre.
+    store.data.deferred = store.data.deferred.filter((r) => !result.failed.some((f) => f.ref === r));
+    if (result.done.length) {
+      console.log(`[deferred] ${result.done.join(', ')}`);
+      islandResult(result, t('island.deferredDone'));
+    }
+  } finally {
+    cleaning = false;
+  }
+}
 
 function registerIpc() {
   handle('respiro:state', async () => ({
     disk: await diskInfo({ wait: !store.data.scan }), scan: store.data.scan, history: store.data.history, samples: store.data.samples, prefs: store.data.prefs, scanning: Boolean(scanning),
+    // Idioma já resolvido pelo main (menu e janela iguais, mesmo com idioma do sistema que o Chromium não conhece).
+    locale: getLocale(),
     // Ler a Lixeira só funciona com Acesso Total ao Disco: serve de teste da permissão.
     fullDiskAccess: await readdir(TRASH).then(() => true, () => false),
     catalog: CATEGORIES.map((c) => ({ id: c.id })),
@@ -187,29 +278,33 @@ function registerIpc() {
 
   handle('respiro:scan', () => startScan());
 
-  handle('respiro:clean', async (/** @type {unknown} */ refs) => {
+  handle('respiro:clean', async (/** @type {unknown} */ refs, /** @type {any} */ opts) => {
     // A tela traduz a chave da mensagem de erro.
     if (!Array.isArray(refs) || !refs.length || refs.length > 1000) throw new Error('error.invalidRequest');
     if (cleaning) throw new Error('error.busy');
+    // "Limpar mesmo assim": só vale para refs deste pedido (o cleaner ainda confere que é o uv).
+    const force = new Set(Array.isArray(opts?.force) ? opts.force.filter((/** @type {unknown} */ r) => typeof r === 'string' && refs.includes(r)) : []);
     cleaning = true;
     try {
       const targets = refs.map(resolve);
-      const missing = refs.filter((_, i) => !targets[i]);
-      // O que a ferramenta diz que removeu pode não virar espaço livre (clones do APFS, disco virtual do Docker).
-      const freeBefore = (await diskInfo()).free;
-      const result = await clean(targets.filter((t) => t !== null), store.data.prefs);
-      const after = await diskInfo();
-      if (!result.simulated) result.disk = after.free - freeBefore;
-      result.failed.push(...missing.map((ref) => ({ ref: String(ref), name: String(ref), message: msg('error.itemMissing') })));
-      if (!result.simulated && result.done.length) {
-        store.data.history.unshift({ at: Date.now(), freed: result.freed, trashed: result.trashed, count: result.done.length, disk: result.disk });
-        store.data.history = store.data.history.slice(0, 200);
-        sample(after, true);
-        await store.save();
-        const touched = new Set([...result.done.map((r) => r.slice(0, r.indexOf('/'))), 'trash']);
-        // Análise em curso usa dados de antes da limpeza: reanalisa as categorias tocadas quando ela terminar.
-        if (scanning) scanning.finally(() => startScan(touched));
-        else startScan(touched);
+      const found = targets.filter((x) => x !== null);
+      // Andamento no ícone da barra de menus, durante qualquer limpeza.
+      let finished = 0;
+      const progress = (/** @type {import('../types.js').CleanEvent} */ e) => {
+        // O ícone da barra gira e mostra o andamento; a pílula só aparece no fim.
+        if (e.kind === 'start') tray.cleaning(`${finished + 1}/${found.length}`);
+        if (e.kind === 'done' || e.kind === 'failed' || e.kind === 'skipped') finished += 1;
+        if (win && !win.isDestroyed()) win.webContents.send('respiro:clean-progress', e);
+      };
+      tray.cleaning(`0/${found.length}`);
+      const result = await cleanAndRecord(found, force, progress).finally(() => tray.cleaning(null));
+      // Fim visto de fora (segundo plano, janela fechada ou sem foco): avisa na pílula do topo.
+      if (background || !win || win.isDestroyed() || !win.isFocused()) islandResult(result);
+      background = false;
+      for (const ref of refs.filter((_, i) => !targets[i])) {
+        const message = msg('error.itemMissing');
+        result.failed.push({ ref: String(ref), name: String(ref), message });
+        progress({ kind: 'failed', ref: String(ref), message });
       }
       return result;
     } finally {
@@ -233,6 +328,9 @@ function registerIpc() {
         .map((/** @type {any} */ i) => ({ ref: i.ref.slice(0, 1024), name: i.name.slice(0, 200), category: i.category.slice(0, 80) }));
     }
     store.data.prefs = prefs;
+    // Item ignorado sai também da análise salva; senão volta na próxima reanálise parcial.
+    const hidden = new Set(prefs.ignored.map((i) => i.ref));
+    for (const c of store.data.scan?.categories ?? []) c.items = c.items.filter((i) => !hidden.has(`${c.id}/${i.id}`));
     await store.save();
     nativeTheme.themeSource = prefs.theme;
     if (prefs.locale !== before.locale) applyLocale();
@@ -243,6 +341,11 @@ function registerIpc() {
     const rescan = new Set([...restored, ...(prefs.staleDays !== before.staleDays ? ['node'] : [])]);
     if (rescan.size) (scanning ?? Promise.resolve()).finally(() => startScan(rescan));
     return prefs;
+  });
+
+  handle('respiro:background', (/** @type {unknown} */ on) => {
+    background = on === true && cleaning;
+    if (!background) island({ kind: 'hide' });
   });
 
   handle('respiro:reveal', (/** @type {unknown} */ ref) => {
@@ -264,8 +367,12 @@ app.whenReady().then(async () => {
   registerIpc();
   shellReady = loadShellPath();
   if (store.data.prefs.scanOnLaunch || !store.data.scan) startScan();
-  createWindow();
+  // Aberto pelo login com a barra ligada: fica só na barra de menus.
+  const atLogin = app.getLoginItemSettings().wasOpenedAtLogin && store.data.prefs.showInMenuBar;
+  if (atLogin) app.dock?.hide();
+  else createWindow();
   tray.syncTray(trayActions);
+  initIsland(() => command('show-cleaning'), tray.bounds);
   // statfs é barato: amostra do gráfico e título da barra a cada 5 minutos.
   tick();
   setInterval(tick, 5 * 60_000);

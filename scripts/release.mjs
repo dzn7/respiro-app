@@ -27,7 +27,8 @@ for (const size of [16, 32, 128, 256, 512]) {
 }
 sh('/usr/bin/iconutil', ['-c', 'icns', iconset, '-o', join(root, 'build/icon.icns')]);
 
-const why = /** @type {string} */ (DICTS['pt-BR']['plist.folders']);
+// Texto padrão em inglês: idiomas sem .lproj próprio (francês, alemão…) caem nele, como a interface.
+const why = /** @type {string} */ (DICTS.en['plist.folders']);
 const [appDir] = await packager({
   dir: root, out: join(root, 'dist'), overwrite: true, platform: 'darwin', arch, prune: true, asar: true,
   name: productName, appBundleId: 'br.com.thalena.respiro', appVersion: version, appCategoryType: 'public.app-category.utilities',
@@ -37,7 +38,6 @@ const [appDir] = await packager({
     NSDocumentsFolderUsageDescription: why,
     NSDesktopFolderUsageDescription: why,
     NSDownloadsFolderUsageDescription: why,
-    NSAppleEventsUsageDescription: DICTS['pt-BR']['plist.appleEvents'],
   },
 });
 
@@ -45,8 +45,7 @@ const [appDir] = await packager({
 for (const [locale, lproj] of /** @type {const} */ ([['pt-BR', 'pt_BR'], ['en', 'en'], ['es', 'es']])) {
   const d = DICTS[locale];
   const folders = /** @type {string} */ (d['plist.folders']);
-  const entries = { NSDocumentsFolderUsageDescription: folders, NSDesktopFolderUsageDescription: folders, NSDownloadsFolderUsageDescription: folders,
-    NSAppleEventsUsageDescription: /** @type {string} */ (d['plist.appleEvents']) };
+  const entries = { NSDocumentsFolderUsageDescription: folders, NSDesktopFolderUsageDescription: folders, NSDownloadsFolderUsageDescription: folders };
   const dir = join(appDir, `${productName}.app/Contents/Resources/${lproj}.lproj`);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'InfoPlist.strings'), Object.entries(entries).map(([k, v]) => `"${k}" = "${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}";`).join('\n') + '\n');

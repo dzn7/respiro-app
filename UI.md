@@ -267,10 +267,29 @@ Estados: hover, pressionado (brilho −6 %), foco visível, ocupado ("Liberando�
 - Segmentado 30 dias / 90 dias / 1 ano ao lado do título "Espaço livre".
 - Hover e setas (Home/End) mostram cruz pontilhada, ponto vazado e dica (valor em `--type-headline`, data, "Limpeza" com bolinha). Tabela `sr-only` com todas as amostras. Menos de duas amostras: frase explicando que o gráfico se completa com o tempo.
 
+### Limpeza em andamento (`cleaning.js`)
+- Toda limpeza (Revisar e liberar, Limpar da linha, itens do detalhe, volume do Docker, esvaziar a Lixeira) troca o sheet por uma página inteira, calma como um documento: coluna de 560 px, sem brilho, sem orbe, sem efeito.
+- Em cima: status pequeno com o anel de 14 px ("2 de 5 · uv"; senha do macOS; no fim um visto e "Pronto"), o **espaço livre do disco agora** em 52/56 tabular (o mesmo número da tela principal, lido do `statfs` a cada 0,7 s) e a legenda "livres no disco agora · +X desde o início" (o "+X" em `--safe`, escondido abaixo de 10 MB). Na simulação, o número é o que seria liberado.
+- Barra com um trecho por item, proporcional ao que ele deve liberar, nas cores das categorias (a mesma linguagem da barra do disco). Trecho ativo pulsa de leve; terminado enche da esquerda (520 ms); falha fica `--attention` a 50 %.
+- Linha de fatos: Removido, Na Lixeira e tempo total, em `--type-callout` com números em `--text`.
+- Lista de tarefas com fio entre linhas: círculo vazio (na fila), anel (rodando, com relógio à direita e a última linha da ferramenta em mono embaixo), visto `--safe` (feito, com o tamanho), aviso `--attention` (falhou, com o motivo). O ícone troca com escala .6 → 1 em 220 ms; a lista rola sozinha até o item ativo.
+- Em uso na hora (pasta aberta, projeto voltou a ser usado, cache do uv preso): cadeado neutro, "para depois" e o motivo; trecho da barra cinza. Não é erro.
+- Cache do uv em uso: bloco discreto (superfície, fio de 0,5 px) "O cache do uv está em uso", com quem segura o cache e as duas saídas: "Deixar para depois" (o Respiro tenta sozinho) e "Limpar mesmo assim" (roda `--force` numa nova página de limpeza). Nenhuma das duas é o botão principal.
+- No fim, na mesma página: frase de resumo, notas (Lixeira, diferença do APFS, Docker) e os botões ("Ver categoria", "Devolver espaço ao macOS", "Concluir"). Esc só fecha depois de terminar (barrado já no teclado; se fechar por outro caminho, a página volta).
+
+### Segundo plano e pílula do topo (`island.js`)
+- Na página da limpeza, "Continuar em segundo plano" (secundário, ao lado da dica) fecha a página e a limpeza segue no main. Na barra de título aparece a pílula "Limpando 2 de 5" com o anel de 12 px; o clique reabre a página.
+- Barra de menus durante qualquer limpeza: o anel gira (12 quadros de 30°, 90 ms) e o título vira "2/5"; no fim volta ao espaço livre.
+- Pílula embaixo do ícone da barra de menus, estilo Dynamic Island: janela própria, transparente e sem foco, criada na abertura do app (aparece sem atraso), centrada no ícone e 2 px abaixo da barra; sem o ícone, no canto direito. Sempre preta (`--island`, nos dois temas), 64 px de altura, canto 32. Aparece quando a limpeza termina em segundo plano ou com a janela sem foco, e quando o Respiro limpa sozinho o que tinha ficado para depois.
+  - Conteúdo: ícone (visto `--island-ok`, cadeado ou aviso em `--island-muted`), título 14/18 600, detalhe ("+32,6 GB livres no disco") e "Ver" em pílula translúcida.
+  - Movimento só com transform e opacity (compositor): nasce do ícone (sobe 8 px e cresce de .94 em 360 ms, `--ease-out`) e recolhe para ele (220 ms). Tamanho fixo: nada de animar largura, altura ou desfoque, que travam numa janela transparente.
+  - Some em 5 s; com o mouse em cima, espera. O clique abre o Respiro na página da limpeza (ou no Histórico, se a janela foi reaberta). Fora da pílula, o mouse passa para o que estiver embaixo. Movimento reduzido: aparece e some sem animar.
+- O andamento fica no próprio ícone (gira e mostra "2/5"); a pílula só traz o resultado.
+
 ### Boas-vindas (`welcome.js`)
 - `<dialog>` em tela cheia sobre a janela, só no primeiro uso (`prefs.onboarded`), fundo `--canvas`, área de arrastar de 44 px no topo, "Pular" no canto direito.
 - Cinco passos, coluna de 460 px centralizada: arte → título (30/36, `--track-display`) → texto (15/22, `--text-secondary`) → controles. Rodapé: pontos (o atual vira pílula de 20 px em `--accent`), "Voltar" e o botão principal.
-  1. **Marca:** anel de 104 px se formando sobre um brilho radial (`--accent-glow`) que respira; seletor de idioma.
+  1. **Marca:** anel de 104 px se formando; seletor de idioma.
   2. **O que ele acha:** as 8 categorias em cartões (4 × 2) entrando em cascata, com a análise real ao vivo (anel → tamanho ou "Não encontrado").
   3. **Seguro por padrão:** três linhas de exemplo; "Cache do npm" voa para a Lixeira em loop, "Documentos" e "Container rodando" ficam com cadeado. Quatro garantias com ícone.
   4. **Permissões:** selo com `shield-check`; cartão com o status real do Acesso Total ao Disco (atualiza ao voltar dos Ajustes do Sistema), barra de menus e abrir ao iniciar.
@@ -324,8 +343,9 @@ Regras: nada em loop além do spinner e do placeholder, e só enquanto a anális
 ## Instalador (.dmg)
 
 - Janela de 640 × 440 sem barra de ferramentas, barra lateral nem barra de status, visão de ícones sem grade.
-- Fundo `#f7f5ef` (o `--canvas` claro), seta fina `#c4bdb0` entre os ícones e a frase "Arraste o Respiro para Aplicativos" em Geist 13 px `#6b675e`, centrada a 318 px do topo. Nada mais.
-- Ícones de 112 px: Respiro em (180, 196), atalho "Aplicativos" em (460, 196); a seta ocupa de 276 a 363 px na mesma altura. Nomes em 12 px embaixo.
+- Fundo `#f7f5ef` (o `--canvas` claro). Cabeçalho centrado: "Instalar o Respiro" (Geist 17/22, 600) e "Arraste o ícone até a pasta Aplicativos." (13/18, `#6b675e`).
+- Ícones de 112 px: Respiro em (180, 196), atalho "Aplicativos" em (460, 196). Atrás de Aplicativos, um quadro tracejado de 132 px com canto de 30 px (`#d3ccbf`) marca onde soltar; uma seta curva pontilhada (`#c4bdb0`) sai do app e aponta para o quadro.
+- Fio a 318 px e dois passos numerados em círculo (12/16): soltar no quadro e, na primeira abertura, "Ajustes do Sistema › Privacidade e Segurança › Abrir Mesmo Assim" (o app não é assinado). Rodapé com versão e arquitetura em 11 px.
 - Fundo Retina: `scripts/dmg-background.js` desenha em 2x (1280 × 880) com a Geist embutida, o `sips` gera o 1x e o `tiffutil -cathidpicheck` junta os dois em `.background/background.tiff`.
 - Sempre claro: com imagem de fundo, o Finder trata a janela como modo claro e desenha os nomes em preto, também no modo escuro.
 - Volume "Respiro" com o ícone do app (`.VolumeIcon.icns` + atributo de ícone personalizado). O layout é gravado pelo Finder via AppleScript durante `npm run release`; o ícone do volume entra por último, porque o Finder o apaga ao gravar o layout.
@@ -347,7 +367,7 @@ Regras: nada em loop além do spinner e do placeholder, e só enquanto a anális
 | Ganho menor que o removido | A diferença é de arquivos que projetos ainda usam (o APFS compartilha cópias entre pastas) ou de espaço que volta depois, como no Docker Desktop. |
 | Docker Desktop | O Docker Desktop pode levar alguns minutos para devolver esse espaço ao macOS. |
 | Protegido | Projeto ativo, fica de fora. |
-| Instalador | Arraste o Respiro para Aplicativos |
+| Instalador | Instalar o Respiro · Arraste o ícone até a pasta Aplicativos. |
 | Sem acesso | Para medir a Lixeira, o Respiro precisa de Acesso Total ao Disco. |
 
 ## Acessibilidade

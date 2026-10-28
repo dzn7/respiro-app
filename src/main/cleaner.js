@@ -1,11 +1,13 @@
 // ÚNICO módulo que apaga (PRD › S1–S10). Lixeira para pastas, comando oficial para o resto.
 // Nada daqui confia no renderer: cada alvo vem da última análise e é revalidado agora.
 import electron from 'electron';
-import { lstat, realpath } from 'node:fs/promises';
+import { lstat, readdir, realpath, rm } from 'node:fs/promises';
 import { userInfo } from 'node:os';
 import { basename, dirname, isAbsolute, join, normalize, sep } from 'node:path';
 import { recheck as recheckBrowser, PLAYWRIGHT } from './categories/browsers.js';
 import { ARTIFACTS, PROJECT_MARKERS, recheck as recheckNode, worktreeMain } from './categories/node-modules.js';
+import { uvHolders } from './categories/packages.js';
+import { TRASH } from './categories/trash.js';
 import { xcodeRunning } from './categories/xcode.js';
 import { msg, t } from '../shared/i18n.js';
 import { exists, home, parseSize, run, size } from './sys.js';
@@ -23,7 +25,7 @@ const projectPath = (a) => isAbsolute(a) && normalize(a) === a && a.startsWith(`
 /**
  * Tabela fechada de comandos. Argumento extra só com validador (regex ou função).
  * `build` monta argumentos que dependem do disco (repositório da worktree).
- * @type {Record<CommandKey, { cmd: string, args: string[], arg?: RegExp | ((a: string) => boolean), build?: (a: string) => Promise<string[]>, measure?: true }>}
+ * @type {Record<CommandKey, { cmd: string, args: string[], arg?: RegExp | ((a: string) => boolean), build?: (a: string) => Promise<string[]>, measure?: true, env?: Record<string, string>, fn?: (onLine: (line: string) => void) => Promise<void> }>}
  */
 const COMMANDS = {
   'pnpm-prune': { cmd: 'pnpm', args: ['store', 'prune'], measure: true },
@@ -31,7 +33,10 @@ const COMMANDS = {
   'yarn-clean': { cmd: 'yarn', args: ['cache', 'clean'], measure: true },
   'bun-clean': { cmd: 'bun', args: ['pm', 'cache', 'rm'], measure: true },
   'pip-purge': { cmd: 'pip3', args: ['cache', 'purge'], measure: true },
-  'uv-prune': { cmd: 'uv', args: ['cache', 'prune'] },
+  // Com a trava presa por outro uv, desiste em 10 s em vez de esperar 5 min.
+  'uv-prune': { cmd: 'uv', args: ['cache', 'prune'], env: { UV_LOCK_TIMEOUT: '10' } },
+  // Só quando a pessoa escolhe "Limpar mesmo assim" com o cache em uso: ignora a trava do uv.
+  'uv-prune-force': { cmd: 'uv', args: ['cache', 'prune', '--force'] },
   'go-clean-modcache': { cmd: 'go', args: ['clean', '-modcache'], measure: true },
   'go-clean-cache': { cmd: 'go', args: ['clean', '-cache'], measure: true },
   'pod-cache-clean': { cmd: 'pod', args: ['cache', 'clean', '--all'], measure: true },
@@ -47,7 +52,7 @@ const COMMANDS = {
   'docker-volume-rm': { cmd: 'docker', args: ['volume', 'rm'], arg: /^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$/ },
   'docker-reclaim': { cmd: 'docker', args: ['run', '--rm', '--privileged', '--pid=host', 'docker/desktop-reclaim-space'] },
   'simctl-delete-unavailable': { cmd: 'xcrun', args: ['simctl', 'delete', 'unavailable'] },
-  'empty-trash': { cmd: '/usr/bin/osascript', args: ['-e', 'tell application "Finder" to empty trash'], measure: true },
+  'empty-trash': { cmd: '', args: [], fn: emptyTrash, measure: true },
 };
 
 /** @param {CommandKey} key @param {string | undefined} arg */
@@ -127,8 +132,26 @@ async function canTrash(path) {
   return null;
 }
 
-/** Motivo para não limpar agora, ou null. @param {Target} t @param {number} staleDays @returns {Promise<Msg | null>} */
-export async function refuse({ category, item }, staleDays) {
+/**
+ * Em uso agora → fica para depois (com opção de forçar quando der); o resto é falha.
+ * @param {import('../types.js').CleanResult} result @param {Target} t @param {Msg} message @param {(e: import('../types.js').CleanEvent) => void} onEvent
+ */
+function skipOrFail(result, t, message, onEvent) {
+  if (BUSY.has(message.key)) {
+    const retry = RETRYABLE.has(message.key);
+    result.skipped.push({ ref: t.ref, name: t.item.name, message, retry });
+    onEvent({ kind: 'skipped', ref: t.ref, message, retry });
+  } else {
+    result.failed.push({ ref: t.ref, name: t.item.name, message });
+    onEvent({ kind: 'failed', ref: t.ref, message });
+  }
+}
+
+/**
+ * Motivo para não limpar agora, ou null. `forced`: a pessoa aceitou limpar o uv em uso.
+ * @param {Target} t @param {number} staleDays @param {boolean} [forced] @returns {Promise<Msg | null>}
+ */
+export async function refuse({ category, item }, staleDays, forced = false) {
   const action = item.action;
   if (!action) return item.note ?? msg('refuse.protected');
   if (action.kind === 'trash') {
@@ -146,6 +169,10 @@ export async function refuse({ category, item }, staleDays) {
   const ok = !spec.arg ? action.arg === undefined
     : typeof spec.arg === 'function' ? spec.arg(action.arg ?? '') : spec.arg.test(action.arg ?? '');
   if (!ok) return msg('refuse.badArg');
+  if (action.key === 'uv-prune' && item.path && !forced) {
+    const holders = await uvHolders(item.path);
+    if (holders.length) return msg('refuse.uvBusy', { names: holders.join(', ') });
+  }
   return null;
 }
 
@@ -161,10 +188,45 @@ export function adminScript(paths, user = userInfo()) {
     + `with prompt ${literal(t('admin.prompt', { n: paths.length }))}`;
 }
 
+/**
+ * Esvazia ~/.Trash item por item, sem o Finder (no macOS 26 o `empty trash` por AppleScript falha com -10000).
+ * Só os filhos diretos de ~/.Trash; `rm` não segue link. A confirmação individual já aconteceu (S8).
+ * @param {(line: string) => void} onLine
+ */
+async function emptyTrash(onLine) {
+  if ((await realpath(TRASH)) !== TRASH) throw Object.assign(new Error('trash through link'), { respiro: msg('refuse.throughLink') });
+  const names = (await readdir(TRASH)).filter((n) => n !== '.DS_Store' && !n.includes('/'));
+  let failed = 0;
+  /** @type {unknown} */
+  let first = null;
+  // O fs do Electron enxerga app.asar como pasta: sem desligar, apagar um .app na Lixeira dá ENOTEMPTY.
+  const asar = process.noAsar;
+  process.noAsar = true;
+  try {
+    for (const name of names) {
+      onLine(name);
+      try {
+        await rm(join(TRASH, name), { recursive: true });
+      } catch (e) {
+        failed += 1;
+        first ??= e;
+      }
+    }
+  } finally {
+    process.noAsar = asar;
+  }
+  // Saiu quase tudo: conta como feito e diz o que ficou. Só falha se nada saiu.
+  const partial = msg('error.trashPartial', { n: failed, reason: friendly(first) });
+  if (failed && failed === names.length) throw Object.assign(new Error('trash failed'), { respiro: partial });
+  if (failed) onLine(t(partial.key, partial.params));
+}
+
 /** Erro do sistema em frase que a pessoa entende. @param {unknown} e @returns {Msg} */
 export function friendly(e) {
+  if (/** @type {any} */ (e)?.respiro) return /** @type {any} */ (e).respiro;
   const message = String(/** @type {any} */ (e)?.message ?? e);
   if (/EACCES|EPERM|permission|permiss[ãa]o/i.test(message)) return msg('error.permission');
+  if (/waiting for lock/i.test(message)) return msg('error.uvLocked');
   return msg('error.raw', { text: message.slice(0, 200) });
 }
 
@@ -175,30 +237,45 @@ export function friendly(e) {
  */
 export function reportedFreed(out, key) {
   const m = /(?:Total reclaimed space|Total|freed approximately):?\s*([\d.]+\s*[kKMGT]?i?B)/.exec(out)
-    ?? /Removed [\d,]+ files?(?: \(|, )([\d.]+\s*[kKMGT]?i?B)/.exec(out);
+    ?? /Removed [\d,]+ files?(?: and [\d,]+ director(?:y|ies))?(?: \(|, )([\d.]+\s*[kKMGT]?i?B)/.exec(out);
   return m ? parseSize(m[1], key === 'brew-cleanup' || /iB/.test(m[1]) ? 1024 : 1000) : null;
 }
 
 /** @param {Item} item @returns {Promise<number | null>} bytes liberados; null se ninguém sabe */
-async function runCommand(item) {
+/** @param {Item} item @param {(line: string) => void} [onLine] @param {boolean} [force] */
+async function runCommand(item, onLine, force = false) {
   const action = /** @type {{ kind: 'cmd', key: CommandKey, arg?: string }} */ (item.action);
-  const spec = COMMANDS[action.key];
+  const key = force && action.key === 'uv-prune' ? 'uv-prune-force' : action.key;
+  const spec = COMMANDS[key];
   const before = spec.measure && item.path ? await size(item.path) : null;
-  const out = await run(spec.cmd, await argv(action.key, action.arg), { timeout: 30 * 60_000 });
-  const reported = reportedFreed(out, action.key);
+  // Muitas ferramentas (uv, pnpm) escrevem o resumo no stderr: guarda as últimas linhas para ler o valor.
+  /** @type {string[]} */
+  const tail = [];
+  const tap = (/** @type {string} */ line) => { tail.push(line); if (tail.length > 40) tail.shift(); onLine?.(line); };
+  const out = spec.fn ? (await spec.fn(tap), '')
+    : await run(spec.cmd, await argv(key, action.arg), { timeout: 30 * 60_000, onLine: tap, env: spec.env });
+  const reported = reportedFreed(`${out}\n${tail.join('\n')}`, action.key);
   if (reported !== null) return reported;
   if (before !== null && item.path) return Math.max(0, before - (await size(item.path)));
   return item.freeable;
 }
 
+/** Recusas de "em uso agora": o item fica para depois, não é erro. */
+const BUSY = new Set(['refuse.uvBusy', 'error.uvLocked', 'refuse.recentProject', 'refuse.browserNowUsed', 'refuse.xcodeOpened', 'refuse.openNow']);
+/** Em uso que passa sozinho (processo fecha): o Respiro pode tentar de novo depois ou forçar com aceite. */
+export const RETRYABLE = new Set(['refuse.uvBusy', 'error.uvLocked']);
+
 /**
  * Limpa os alvos em sequência. Simular percorre as mesmas checagens sem executar nada.
- * @param {Target[]} targets @param {{ simulate: boolean, staleDays: number }} opts
+ * `onEvent` conta o andamento para a tela: senha, início e fim de cada item, última linha do comando.
+ * `force`: refs que a pessoa mandou limpar mesmo em uso (só o uv aceita).
+ * @param {Target[]} targets @param {{ simulate: boolean, staleDays: number, force?: Set<string> }} opts
+ * @param {(e: import('../types.js').CleanEvent) => void} [onEvent]
  * @returns {Promise<import('../types.js').CleanResult>}
  */
-export async function clean(targets, { simulate, staleDays }) {
+export async function clean(targets, { simulate, staleDays, force = new Set() }, onEvent = () => {}) {
   /** @type {import('../types.js').CleanResult} */
-  const result = { simulated: simulate, freed: 0, trashed: 0, unknown: 0, done: [], failed: [], docker: false, disk: 0 };
+  const result = { simulated: simulate, freed: 0, trashed: 0, unknown: 0, done: [], failed: [], skipped: [], docker: false, disk: 0, free: 0 };
   const solo = targets.length > 1 && targets.some((t) => t.item.individual);
   /** @type {Set<string>} comandos sem argumento rodam uma vez só */
   const ran = new Set();
@@ -209,6 +286,7 @@ export async function clean(targets, { simulate, staleDays }) {
   const admin = solo || simulate ? [] : (await Promise.all(targets.filter((t) => t.item.admin && t.item.action?.kind === 'trash')
     .map(async (t) => ((await refuse(t, staleDays)) ? null : t)))).filter((t) => t !== null);
   if (admin.length) {
+    onEvent({ kind: 'password' });
     try {
       await run('/usr/bin/osascript', ['-e', adminScript(admin.map((t) => /** @type {{ path: string }} */ (t.item.action).path))], { timeout: 180_000 });
     } catch (/** @type {any} */ e) {
@@ -219,27 +297,46 @@ export async function clean(targets, { simulate, staleDays }) {
 
   for (const t of targets) {
     const { item } = t;
-    const why = solo ? msg('error.solo') : adminFailed.get(t.ref) ?? await refuse(t, staleDays);
+    onEvent({ kind: 'start', ref: t.ref });
+    const forced = force.has(t.ref) && item.action?.kind === 'cmd' && item.action.key === 'uv-prune';
+    const why = solo ? msg('error.solo') : adminFailed.get(t.ref) ?? await refuse(t, staleDays, forced);
     if (why) {
-      result.failed.push({ ref: t.ref, name: item.name, message: why });
+      skipOrFail(result, t, why, onEvent);
       continue;
     }
     try {
       const action = /** @type {NonNullable<Item['action']>} */ (item.action);
+      let freed = /** @type {number | null} */ (0);
+      let trashed = 0;
       if (action.kind === 'trash') {
         if (!simulate) await electron.shell.trashItem(action.path);
-        result.trashed += item.size;
+        trashed = item.size;
+        result.trashed += trashed;
       } else {
         const once = `${action.key}:${action.arg ?? ''}`;
-        const freed = simulate ? item.freeable : ran.has(once) ? 0 : await runCommand(item);
+        // Linha da ferramenta para a tela: no máximo uma a cada 150 ms, sempre a mais recente.
+        let latest = '';
+        /** @type {NodeJS.Timeout | null} */
+        let timer = null;
+        const onLine = (/** @type {string} */ line) => {
+          latest = line;
+          timer ??= setTimeout(() => { timer = null; onEvent({ kind: 'output', ref: t.ref, line: latest }); }, 150);
+        };
+        try {
+          freed = simulate ? item.freeable : ran.has(once) ? 0 : await runCommand(item, onLine, forced);
+        } finally {
+          // Sem isto, uma linha velha chegaria depois do motivo da falha e o apagaria da tela.
+          if (timer) clearTimeout(timer);
+        }
         ran.add(once);
         if (freed === null) result.unknown += 1;
         else result.freed += freed;
       }
       result.done.push(t.ref);
       if (t.category === 'docker') result.docker = true;
+      onEvent({ kind: 'done', ref: t.ref, freed, trashed });
     } catch (/** @type {any} */ e) {
-      result.failed.push({ ref: t.ref, name: item.name, message: friendly(e) });
+      skipOrFail(result, t, friendly(e), onEvent);
     }
   }
   return result;

@@ -79,8 +79,9 @@ export async function scan() {
       const total = parts.reduce((sum, p) => sum + p.size, 0);
       items.push({ id: 'simulators', name: msg('name.simsUnavailable'), detail: msg('detail.simulators', { n: parts.length }), size: total, freeable: total, safe: true, parts: parts.map((p) => ({ name: String(p.name), size: p.size })), action: { kind: 'cmd', key: 'simctl-delete-unavailable' } });
     }
-  } else {
-    // Sem Xcode (só Command Line Tools): nenhum simulador abre. Atenção, não seguro: voltam se o Xcode for reinstalado.
+  } else if (!(await readdir('/Applications').catch(() => [])).some((n) => /^Xcode.*\.app$/.test(n))) {
+    // Sem Xcode (só Command Line Tools): nenhum simulador abre. Com Xcode instalado e simctl falhando
+    // (xcode-select apontando para as CLT, tempo esgotado), não dá para saber: os simuladores ficam de fora. Atenção, não seguro: voltam se o Xcode for reinstalado.
     for (const udid of await readdir(DEVICES).catch(() => [])) {
       if (!/^[0-9A-F-]{36}$/.test(udid)) continue;
       const path = join(DEVICES, udid);

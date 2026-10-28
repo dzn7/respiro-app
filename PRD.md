@@ -42,7 +42,7 @@ Detecta o que existe na máquina. Categoria ausente não aparece.
 | Navegadores de teste | revisões do Playwright que nenhuma instalação usa; versões do Cypress e do Puppeteer (a mais nova fica em uso) | Lixeira (Playwright: mesma regra do coletor dele, `.links` + `browsers.json`) |
 | Homebrew | downloads em cache e versões antigas | `brew cleanup --prune=all` (prévia com `-n`) |
 | Caches de apps e editores | `~/Library/Caches` e `~/Library/Logs` (sem `com.apple.*` e sem o que já está em outra categoria), versões obsoletas de extensões do VS Code, Insiders, Cursor e Windsurf (`.obsolete` fora do `extensions.json`), caches e logs de versões antigas das IDEs JetBrains | Lixeira |
-| Lixeira | `~/.Trash` | Finder esvazia (permanente) |
+| Lixeira | `~/.Trash` | o Respiro apaga o que está dentro de `~/.Trash`, item por item, depois da confirmação individual (permanente; sem o Finder, que no macOS 26 falha com -10000) |
 
 - Aceite: cada categoria mostra espaço ocupado, quanto é seguro liberar e um botão de limpar.
 - Aceite: lista ordenada por tamanho ocupado.
@@ -117,7 +117,7 @@ Escolha de pastas para buscar projetos, assinatura e notarização (necessárias
 
 S1. Todo código que apaga passa por `src/main/cleaner.js`. Nenhum outro arquivo de `src/` chama `rm`, `unlink`, `trashItem` ou comando de limpeza. O `npm run check` bloqueia.
 S2. Comando oficial primeiro. Pasta só vai para a Lixeira quando não existe comando oficial ou a ferramenta não está instalada.
-S3. Nada é apagado direto do disco pelo app. Itens manuais vão para a Lixeira (`shell.trashItem`). Exclusão permanente só acontece por comando oficial da ferramenta ou ao esvaziar a Lixeira com confirmação própria.
+S3. Nada é apagado direto do disco pelo app. Itens manuais vão para a Lixeira (`shell.trashItem`). Exclusão permanente só acontece por comando oficial da ferramenta ou ao esvaziar a Lixeira com confirmação própria; nesse caso o `cleaner.js` apaga só os filhos diretos de `~/.Trash` (caminho real conferido, sem seguir link).
 S4. O renderer nunca envia caminho nem comando. Envia o id do item; o processo principal resolve o item a partir da última análise e revalida antes de agir.
 S5. Caminho para a Lixeira precisa estar dentro da raiz permitida da categoria, não pode ser link simbólico e não pode ser a própria raiz.
 S6. Comandos vêm de uma tabela fixa em `cleaner.js`, rodam com `execFile` (sem shell) e argumentos validados.
@@ -127,6 +127,7 @@ S9. Caches e logs de apps tocados nos últimos 7 dias são "atenção" (o app po
 S10. Proteção é revalidada no momento da limpeza, não só na análise: o que entrou como seguro e ficou ativo nesse meio-tempo não sai.
 S11. Senha de administrador só pelo diálogo nativo do macOS (`osascript … with administrator privileges`), uma vez por limpeza, só para `chown -R` de caminhos que passaram por `trashRule`, e só depois da confirmação. Nada é apagado como root.
 S12. Git só com `git -C <repositório principal> worktree remove <worktree>`, sem `--force`: o git recusa se houver mudança. Worktree travada ou com mudanças não tem ação. Nada que descarte trabalho (reset, clean, checkout, branch -D) entra na tabela. Worktree com `.env` avisa que arquivos ignorados saem junto e não vão para a Lixeira.
+S13. Em uso na hora de limpar não é erro: o item fica para depois (pasta aberta por um programa, projeto que voltou a ser usado, Xcode aberto, cache do uv preso por outro processo). O cache do uv volta para uma fila e o Respiro tenta de novo sozinho a cada 5 minutos, enquanto o app roda; `uv cache prune --force` só roda quando a pessoa lê o aviso e escolhe "Limpar mesmo assim".
 
 ## Limites conhecidos
 

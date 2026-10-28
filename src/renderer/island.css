@@ -1,0 +1,30 @@
+/* Pílula embaixo do ícone da barra (estilo Dynamic Island): sempre preta, como a do iPhone, nos dois temas.
+   Tamanho fixo; a entrada e a saída animam só transform e opacity (compositor, sem refazer layout). */
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+body { padding: 6px 10px 0; box-sizing: border-box; font-family: var(--font); -webkit-font-smoothing: antialiased; cursor: default; }
+.island {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 64px;
+  padding: 0 12px 0 18px;
+  border-radius: 32px;
+  background: var(--island);
+  color: var(--island-text);
+  box-shadow: var(--island-shadow);
+  opacity: 0;
+  transform-origin: var(--tip, 50%) 0;
+  will-change: transform, opacity;
+}
+.island[data-shown] { opacity: 1; }
+.island-glyph { display: grid; place-items: center; flex: none; }
+.island-glyph.tone-ok { color: var(--island-ok); }
+.island-glyph.tone-later, .island-glyph.tone-warn { color: var(--island-muted); }
+.island-text { display: grid; gap: 1px; flex: 1; min-width: 0; }
+.island-title { overflow: hidden; font: 600 14px/18px var(--font); letter-spacing: -0.01em; text-overflow: ellipsis; white-space: nowrap; }
+.island-detail { overflow: hidden; font: 400 13px/17px var(--font); color: var(--island-muted); font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+.island-action { flex: none; padding: 7px 15px; border-radius: 999px; background: var(--island-chip); font: 550 13px/16px var(--font); transition: background-color var(--dur-response) var(--ease-out); }
+.island:hover .island-action { background: var(--island-chip-hover); }

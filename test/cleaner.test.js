@@ -87,6 +87,8 @@ test('lê o valor liberado que a ferramenta informa', () => {
   assert.equal(reportedFreed('Total reclaimed space: 512kB', 'docker-rm-image'), 512_000);
   assert.equal(reportedFreed('==> This operation has freed approximately 1.5GB of disk space.', 'brew-cleanup'), 1.5 * 1024 ** 3);
   assert.equal(reportedFreed('Removed 120 packages', 'pnpm-prune'), null);
+  // uv escreve no stderr, com diretórios no meio da frase.
+  assert.equal(reportedFreed('Pruning cache at: ~/.cache/uv\nRemoved 1234 files and 56 directories (2.0GiB)', 'uv-prune'), 2 * 1024 ** 3);
 });
 
 test('pasta sem escrita não é movível sem senha', async () => {

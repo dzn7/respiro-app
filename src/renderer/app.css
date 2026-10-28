@@ -657,15 +657,6 @@ dialog.welcome::backdrop { background: var(--canvas); }
 .welcome-page > :nth-child(4) { animation-delay: 300ms; }
 .welcome-art { display: grid; place-items: center; min-height: 136px; margin-bottom: var(--space-4); animation: none; }
 .welcome-art > * { grid-area: 1 / 1; }
-.welcome-glow {
-  width: 240px;
-  height: 240px;
-  margin: -60px;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, var(--accent-glow), transparent);
-  animation: glow 4800ms var(--ease-in-out) infinite alternate;
-}
-@keyframes glow { from { scale: .82; opacity: .6; } to { scale: 1.08; opacity: 1; } }
 .welcome-title { margin: 0; font: var(--type-display); font-size: 30px; line-height: 36px; letter-spacing: var(--track-display); text-wrap: balance; }
 .welcome-text { margin: 0; max-width: 42ch; font: var(--type-body); font-size: 15px; line-height: 22px; color: var(--text-secondary); text-wrap: pretty; }
 .welcome-field { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-4); font: var(--type-callout); color: var(--text-secondary); }
@@ -752,14 +743,14 @@ dialog.welcome::backdrop { background: var(--canvas); }
   border-radius: 24px;
   background: var(--surface);
   color: var(--accent);
-  box-shadow: var(--shadow-popover);
+  box-shadow: var(--shadow-control), inset 0 0 0 .5px var(--separator);
   animation: ring-in 800ms var(--ease-out) both;
 }
 .welcome-card { width: 100%; margin-top: var(--space-3); padding: var(--space-4); border-radius: var(--radius-group); background: var(--surface); box-shadow: inset 0 0 0 .5px var(--separator); text-align: left; }
 .access-status { justify-self: end; }
 
 @media (prefers-reduced-motion: reduce) {
-  dialog.welcome[open], .welcome-page > *, .welcome-glow, .tile, .tile-status .num, .scene-row.go, .scene-trash, .welcome-points li,
+  dialog.welcome[open], .welcome-page > *, .tile, .tile-status .num, .scene-row.go, .scene-trash, .welcome-points li,
   .access-badge, .ready-check, .page-brand .ring, .page-brand .ring-arc, .page-ready .ring, .page-ready .ring-arc { animation: none; }
   .page-ready .ring-arc { stroke-dasharray: 100 100; }
 }
@@ -800,3 +791,122 @@ dialog.welcome::backdrop { background: var(--canvas); }
 .chart-tip-mark { display: inline-flex; align-items: center; gap: 5px; }
 .chart-tip-mark::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--chart-line); }
 .chart-empty { margin: var(--space-1) 0 0; }
+
+/* ---------- Limpeza em andamento ----------
+   Página calma, como um documento: status pequeno, o ganho do disco em destaque, a barra com um trecho por item
+   (cores das categorias, como a barra do disco), uma linha de fatos e a lista de tarefas. Sem brilho nem efeito:
+   o movimento é o número contando, o trecho enchendo e o ícone de cada tarefa trocando. */
+dialog.cleaning {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--canvas);
+  color: var(--text);
+}
+dialog.cleaning[open] { display: grid; grid-template-rows: minmax(0, 1fr) auto; animation: fade-in var(--dur-state) var(--ease-out); }
+dialog.cleaning::backdrop { background: var(--canvas); }
+@keyframes fade-in { from { opacity: 0; } }
+
+.clean-doc { display: flex; flex-direction: column; width: min(560px, 100%); min-height: 0; margin: 0 auto; padding: 64px var(--space-8) 0; }
+.clean-head { display: grid; gap: var(--space-2); padding-bottom: var(--space-5); }
+.clean-status { display: flex; align-items: center; gap: var(--space-2); min-height: 18px; margin: 0; font: var(--type-headline); color: var(--text-secondary); }
+.clean-status-glyph { display: grid; place-items: center; width: 14px; height: 14px; }
+.clean-doc[data-phase="done"] .clean-status-glyph { color: var(--safe); animation: glyph-in var(--dur-state) var(--ease-out); }
+.clean-doc[data-phase="error"] .clean-status-glyph { color: var(--attention); }
+.clean-amount { margin: var(--space-2) 0 0; font: 600 52px/56px var(--font); letter-spacing: -0.045em; font-variant-numeric: tabular-nums; }
+.clean-caption { margin: 0; font: var(--type-body); font-size: 15px; line-height: 20px; color: var(--text-secondary); }
+
+/* Um trecho por item; o trecho enche da esquerda quando o item termina. */
+.clean-meter { display: flex; gap: 2px; height: 6px; margin: var(--space-4) 0 var(--space-1); }
+.meter-part { position: relative; flex: var(--w) 1 0; min-width: 4px; overflow: hidden; border-radius: 3px; background: var(--surface-sunken); }
+.meter-fill { position: absolute; inset: 0; background: var(--c); transform: scaleX(0); transform-origin: left; transition: transform 520ms var(--ease-out); }
+.meter-part[data-state="running"] .meter-fill { transform: scaleX(1); opacity: .28; animation: meter-wait 1600ms var(--ease-in-out) infinite alternate; }
+.meter-part[data-state="done"] .meter-fill { transform: scaleX(1); }
+.meter-part[data-state="failed"] .meter-fill { transform: scaleX(1); background: var(--attention); opacity: .5; }
+@keyframes meter-wait { to { opacity: .55; } }
+
+.clean-facts { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: 0; font: var(--type-callout); color: var(--text-secondary); }
+.clean-facts .num { color: var(--text); font-variant-numeric: tabular-nums; }
+.clean-summary { margin: var(--space-3) 0 0; font: var(--type-body); font-size: 15px; line-height: 21px; }
+.clean-summary:empty { display: none; }
+.clean-summary:not(:empty) { animation: rise-in var(--dur-enter) var(--ease-out); }
+.clean-notes { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; font: var(--type-callout); color: var(--text-secondary); }
+.clean-notes:empty { display: none; }
+.clean-notes li { animation: rise-in var(--dur-enter) var(--ease-out) both; }
+.clean-notes li:nth-child(2) { animation-delay: 60ms; }
+
+.clean-scroll { flex: 1; min-height: 0; overflow-y: auto; border-top: .5px solid var(--separator);
+  mask-image: linear-gradient(var(--text) calc(100% - 32px), transparent); }
+.clean-list { margin: 0; padding: var(--space-2) 0 var(--space-8); list-style: none; }
+.job {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  padding: 9px 0;
+  border-bottom: .5px solid var(--separator);
+  color: var(--text-secondary);
+  animation: rise-in 360ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 30ms);
+  transition: color var(--dur-state) var(--ease-out);
+}
+.job[data-state="running"], .job[data-state="done"] { color: var(--text); }
+.job-glyph { display: grid; place-items: center; width: 16px; height: 19px; }
+.job-glyph > * { animation: glyph-in var(--dur-state) var(--ease-out); }
+.job-dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: inset 0 0 0 1.25px var(--control-border); }
+.job[data-state="done"] .job-glyph { color: var(--safe); }
+.job[data-state="failed"] .job-glyph { color: var(--attention); }
+@keyframes glyph-in { from { opacity: 0; scale: .6; } }
+.job-text { display: grid; min-width: 0; }
+.job-name { overflow: hidden; font: var(--type-body); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.job-meta { overflow: hidden; font: var(--type-callout); color: var(--text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+.job-meta code { font: var(--type-mono); }
+/* Linha da ferramenta: abre só no item ativo (ou com o motivo da falha). */
+.job-line { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--dur-state) var(--ease-out); }
+.job-line-text { min-height: 0; overflow: hidden; color: var(--text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+.job[data-state="running"] .job-line, .job[data-state="failed"] .job-line { grid-template-rows: 1fr; }
+.job[data-state="running"] .job-line-text:not(:empty) { padding-top: 3px; }
+.job[data-state="failed"] .job-line-text { padding-top: 3px; font: var(--type-callout); color: var(--attention); white-space: normal; }
+.job-side { font: var(--type-callout); color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.job[data-state="done"] .job-side { color: var(--text); }
+
+.clean-foot { display: flex; align-items: center; gap: var(--space-2); width: min(560px, 100%); min-height: 72px; margin: 0 auto; padding: var(--space-4) var(--space-8) var(--space-6); }
+.clean-foot .spacer { flex: 1; }
+.clean-foot .button { animation: fade-in var(--dur-state) var(--ease-out); }
+.clean-hint { flex: 1; margin: 0; font: var(--type-callout); color: var(--text-secondary); }
+/* Limpeza em segundo plano: pílula na barra de título que reabre a página. */
+.clean-pill { gap: 6px; }
+
+/* Anel dentro de botão colorido acompanha o texto do botão. */
+.button .ring-arc { stroke: currentColor; }
+
+@media (prefers-reduced-motion: reduce) {
+  dialog.cleaning[open], .job, .job-glyph > *, .clean-notes li, .clean-summary:not(:empty), .clean-foot .button, .meter-part[data-state="running"] .meter-fill { animation: none; }
+  .meter-fill, .job-line { transition: none; }
+}
+
+/* Em uso: fica para depois, sem cor de erro. Pergunta do uv: bloco discreto, como um aviso do Notion. */
+.meter-part[data-state="skipped"] .meter-fill { transform: scaleX(1); background: var(--text-secondary); opacity: .25; }
+.job[data-state="skipped"] .job-glyph { color: var(--text-secondary); }
+.job[data-state="skipped"] .job-line { grid-template-rows: 1fr; }
+.job[data-state="skipped"] .job-line-text { padding-top: 3px; font: var(--type-callout); white-space: normal; }
+.clean-delta { color: var(--safe); }
+.clean-ask {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-group);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 .5px var(--separator);
+  animation: rise-in var(--dur-enter) var(--ease-out);
+}
+.clean-ask-title { display: flex; align-items: center; gap: var(--space-2); margin: 0; font: var(--type-headline); }
+.clean-ask-text { margin: 0; font: var(--type-callout); color: var(--text-secondary); text-wrap: pretty; }
+.clean-ask-actions { display: flex; gap: var(--space-2); justify-content: flex-end; }

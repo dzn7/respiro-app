@@ -1,7 +1,7 @@
 // pnpm, npm, yarn, bun, pip, uv, Go, Cargo, Gradle, Maven, CocoaPods e pub.
 // Comando oficial sempre que a CLI existe; Lixeira quando a ferramenta não tem comando ou não está instalada.
 import { readdir } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { msg } from '../../shared/i18n.js';
 import { cachedSize, exists, has, home, measure, run, size, tilde } from '../sys.js';
 
@@ -29,7 +29,8 @@ export async function scan(ctx) {
         const path = join(dirname(store), v);
         if (/^v\d+$/.test(v) && path !== store) {
           items.push({
-            id: `pnpm-store-${v}`, name: msg('name.pnpmOld', { v }), detail: tilde(path), path, size: 0, freeable: 0, safe: false,
+            // Projetos que fixam a versão antiga do pnpm clonam deste store: o ganho real só aparece depois.
+            id: `pnpm-store-${v}`, name: msg('name.pnpmOld', { v }), detail: tilde(path), path, size: 0, freeable: null, safe: false,
             note: msg('note.pnpmOld'),
             action: { kind: 'trash', path },
           });
@@ -58,7 +59,8 @@ export async function scan(ctx) {
 
   const bunCache = process.env.BUN_INSTALL_CACHE_DIR || join(home, '.bun/install/cache');
   if (await exists(bunCache)) {
-    items.push({ id: 'bun', name: 'Bun', detail: tilde(bunCache), path: bunCache, size: 0, freeable: 0, safe: true,
+    // O bun clona do cache para os node_modules (APFS): apagar o cache devolve menos que o du mostra.
+    items.push({ id: 'bun', name: 'Bun', detail: tilde(bunCache), path: bunCache, size: 0, freeable: null, safe: true, note: msg('note.sharedCache'),
       action: bun ? { kind: 'cmd', key: 'bun-clean' } : { kind: 'trash', path: bunCache } });
   }
 
@@ -75,9 +77,32 @@ export async function scan(ctx) {
   // uv cache size é ~4x mais rápido que o du em caches com milhões de arquivos.
   const uvSize = (/** @type {string} */ p) => run('uv', ['cache', 'size'], { timeout: 120_000 }).then((o) => Number(o.trim()) || size(p), () => size(p));
   await Promise.all(items.filter((i) => i.id.startsWith('pnpm-store') || i.id === 'uv').map(async (i) => {
-    i.size = await cachedSize(/** @type {string} */ (i.path), ctx.sizeCache, i.id === 'uv' ? uvSize : undefined);
+    // O uv regrava metadados a cada uso: a impressão digital muda sem o tamanho mudar. Remede a cada 6 h.
+    i.size = await cachedSize(/** @type {string} */ (i.path), ctx.sizeCache, i.id === 'uv' ? uvSize : undefined, i.id === 'uv' ? 6 * 3_600_000 : 0);
   }));
   return { items: await measure(items) };
+}
+
+/**
+ * Quem segura a trava do cache do uv (uvx e uv run abertos, como servidores MCP). Com algum aberto,
+ * `uv cache prune` espera para sempre. Devolve nomes legíveis: o pacote do uvx ou a pasta do projeto.
+ * @param {string} cache
+ */
+export async function uvHolders(cache) {
+  const pids = (await run('/usr/sbin/lsof', ['-t', join(cache, '.lock')], { timeout: 5000 }).catch(() => '')).trim().split('\n').filter((p) => /^\d+$/.test(p));
+  if (!pids.length) return [];
+  const lines = (await run('/bin/ps', ['-o', 'args=', '-p', pids.join(',')], { timeout: 5000 }).catch(() => '')).trim().split('\n');
+  return [...new Set(lines.filter(Boolean).map(uvProcessName))];
+}
+
+/** "uv tool uvx code-review-graph serve" → code-review-graph; "uv --directory ~/x/srv run main.py" → srv. @param {string} args */
+export function uvProcessName(args) {
+  const words = args.trim().split(/\s+/);
+  const uvx = words.indexOf('uvx');
+  if (uvx >= 0 && words[uvx + 1]) return words[uvx + 1];
+  const dir = words.indexOf('--directory');
+  if (dir >= 0 && words[dir + 1]) return basename(words[dir + 1]);
+  return 'uv';
 }
 
 /** Ecossistemas além do JavaScript. Cada um só aparece se a pasta existir. */
@@ -92,7 +117,9 @@ async function otherTools() {
 
   // uv: "nunca é seguro mexer na pasta direto" (docs da Astral). prune tira só o que nada mais alcança.
   const uvDir = uv ? await ask('uv', ['cache', 'dir']) : join(home, '.cache/uv');
-  await add({ id: 'uv', name: 'uv', detail: tilde(uvDir), path: uvDir, freeable: null, note: msg('note.uvPrune'),
+  const holders = await uvHolders(uvDir);
+  await add({ id: 'uv', name: 'uv', detail: tilde(uvDir), path: uvDir, freeable: null, safe: !holders.length, inUse: holders.length > 0,
+    note: holders.length ? msg('note.uvBusy', { names: holders.join(', ') }) : msg('note.uvPrune'),
     action: uv ? { kind: 'cmd', key: 'uv-prune' } : { kind: 'trash', path: uvDir } });
 
   // Go: o cache de módulos é só leitura; só o próprio go consegue apagar.

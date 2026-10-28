@@ -19,16 +19,37 @@ export async function loadShellPath() {
 }
 
 /**
- * execFile sem shell. Rejeita com a saída de erro da ferramenta.
- * @param {string} cmd @param {string[]} args @param {{ timeout?: number }} [opts]
+ * execFile sem shell. Rejeita com a saída de erro da ferramenta. `onLine` recebe cada linha que a ferramenta
+ * escreve (stdout e stderr, sem cores; barras de progresso com \r viram linhas).
+ * @param {string} cmd @param {string[]} args
+ * @param {{ timeout?: number, onLine?: (line: string) => void, env?: Record<string, string> }} [opts]
  * @returns {Promise<string>}
  */
-export function run(cmd, args, { timeout = 120_000 } = {}) {
+export function run(cmd, args, { timeout = 120_000, onLine, env } = {}) {
   return new Promise((resolve, reject) => {
-    execFile(cmd, args, { timeout, maxBuffer: 64 << 20, env: { ...process.env, PATH } }, (err, stdout, stderr) => {
+    const child = execFile(cmd, args, { timeout, maxBuffer: 64 << 20, env: { ...process.env, ...env, PATH } }, (err, stdout, stderr) => {
       if (err) reject(Object.assign(err, { stdout, stderr, message: (stderr || err.message).trim().split('\n').pop() }));
       else resolve(stdout);
     });
+    if (!onLine) return;
+    // Linha cortada entre dois pedaços espera o resto; o que sobrar sai no fim.
+    const reader = () => {
+      let rest = '';
+      const emit = (/** @type {string} */ line) => { if (line.trim()) onLine(line.trim().slice(0, 200)); };
+      return {
+        data: (/** @type {Buffer} */ chunk) => {
+          const parts = (rest + String(chunk)).replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').split(/[\r\n]/);
+          rest = parts.pop() ?? '';
+          parts.forEach(emit);
+        },
+        end: () => { emit(rest); rest = ''; },
+      };
+    };
+    const out = reader();
+    const err = reader();
+    child.stdout?.on('data', out.data);
+    child.stderr?.on('data', err.data);
+    child.on('close', () => { out.end(); err.end(); });
   });
 }
 
@@ -156,14 +177,35 @@ export async function fingerprint(dir) {
 
 /**
  * Tamanho com cache por impressão digital. `measure` troca o du por algo mais rápido da própria ferramenta.
+ * `maxAge`: pasta que muda o tempo todo sem mudar de tamanho (cache do uv) só é remedida depois desse tempo.
  * @param {string} path @param {import('../types.js').ScanContext['sizeCache']} cache
- * @param {(path: string) => Promise<number>} [measure]
+ * @param {(path: string) => Promise<number>} [measure] @param {number} [maxAge] ms
  */
-export async function cachedSize(path, cache, measure = size) {
+export async function cachedSize(path, cache, measure = size, maxAge = 0) {
   const key = await fingerprint(path);
-  if (cache[path]?.key !== key) cache[path] = { key, size: await measure(path) };
+  const fresh = cache[path] && Date.now() - (cache[path].at ?? 0) < maxAge;
+  if (cache[path]?.key !== key && !fresh) cache[path] = { key, size: await measure(path), at: Date.now() };
   return cache[path].size;
 }
+
+/** @type {{ at: number, files: Promise<string[]> } | null} */
+let open = null;
+
+/**
+ * Arquivos abertos agora pelos processos do usuário (`lsof`, ~0,1 s). Guardado por 10 s: a análise e a
+ * revalidação de cada item da limpeza consultam a mesma lista.
+ */
+export function openFiles() {
+  if (!open || Date.now() - open.at > 10_000) {
+    open = { at: Date.now(), files: run('/usr/sbin/lsof', ['-n', '-P', '-w', '-F', 'n'], { timeout: 20_000 })
+      .catch((/** @type {any} */ e) => e?.stdout ?? '')
+      .then((out) => String(out).split('\n').filter((l) => l.startsWith('n/')).map((l) => l.slice(1))) };
+  }
+  return open.files;
+}
+
+/** Algum processo tem arquivo aberto dentro da pasta (ou roda de dentro dela)? @param {string} dir @param {string[]} files */
+export const openInside = (dir, files) => files.some((f) => f === dir || f.startsWith(`${dir}/`));
 
 /** Nomes e bundle IDs dos apps abertos, em minúsculas. */
 export async function runningApps() {

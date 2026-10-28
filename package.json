@@ -1,7 +1,7 @@
 {
   "name": "respiro",
   "productName": "Respiro",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Mostra o uso do disco e libera caches de desenvolvimento com segurança.",
   "author": "Derick Mackenzie",
   "license": "UNLICENSED",
