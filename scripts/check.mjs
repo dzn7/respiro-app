@@ -27,6 +27,9 @@ const COLOR = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\
 const NATIVE_CONTROL = /h\('(?:select|details|summary|datalist)'|<(?:select|details|summary|datalist)\b|type: ['"](?:checkbox|radio|range|color|date)['"]|<input\b[^>]*type="(?:checkbox|radio|range|color|date)"/g;
 const DELETE_CALL = /\b(?:rm|rmSync|rmdir|rmdirSync|unlink|unlinkSync|trashItem|emptyDir)\s*\(/g;
 const DELETE_WORD = /(['"`])(?:rm|rmi|prune|purge|clean|cleanup|delete)\1|empty trash/gi;
+// Encerrar processo e parar container (S15): só o relief.js.
+const RELIEF = 'src/main/relief.js';
+const END_CALL = /\.kill\s*\(|\bkill\s*\(|(['"`])(?:kill|pkill|killall)\1|\[\s*(?:(['"`])container\2\s*,\s*)?(['"`])stop\3/g;
 
 for (const file of files) {
   let text;
@@ -54,6 +57,9 @@ for (const file of files) {
     for (const re of [DELETE_CALL, DELETE_WORD]) {
       for (const m of text.matchAll(re)) fail(file, text, m.index, `exclusão fora de ${CLEANER}: "${m[0]}" (PRD › S1)`);
     }
+  }
+  if (file.startsWith('src/main/') && file !== RELIEF) {
+    for (const m of text.matchAll(END_CALL)) fail(file, text, m.index, `encerrar fora de ${RELIEF}: "${m[0]}" (PRD › S15)`);
   }
 }
 

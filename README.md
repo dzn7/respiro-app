@@ -5,10 +5,11 @@
 # Respiro
 
 Seu Mac diz que o disco tá cheio e joga a culpa em "Dados do Sistema"?<br>
-O Respiro abre essa caixa-preta e devolve o espaço que seus projetos esqueceram para trás.
+O Respiro abre essa caixa-preta e devolve o espaço que seus projetos esqueceram para trás.<br>
+E quando ele trava por memória, mostra o que está pesando e o que dá para encerrar sem perder trabalho.
 
 [![macOS](https://img.shields.io/badge/macOS-Apple_Silicon-1f1e1b?style=flat-square&logo=apple&logoColor=white)](#instalando)
-[![Versão](https://img.shields.io/badge/versão-0.5.0-b4552f?style=flat-square)](https://github.com/dzn7/respiro-app/releases/latest)
+[![Versão](https://img.shields.io/badge/versão-0.6.0-b4552f?style=flat-square)](https://github.com/dzn7/respiro-app/releases/latest)
 [![Electron](https://img.shields.io/badge/Electron-44-2b2a27?style=flat-square&logo=electron&logoColor=9feaf9)](https://www.electronjs.org/)
 [![Sem telemetria](https://img.shields.io/badge/telemetria-zero-2f7a4f?style=flat-square)](#privacidade)
 [![Licença](https://img.shields.io/badge/licença-proprietária-1f1e1b?style=flat-square)](LICENSE)
@@ -38,7 +39,7 @@ Dava para sair apagando com `rm -rf`. Também dava para apagar o volume do Postg
 3. **Aperta "Revisar e liberar…".** Ele mostra a lista exata do que vai sair e como. Pasta vai para a Lixeira. Cache de ferramenta é limpo pelo comando da própria ferramenta.
 4. **Confere o resultado.** O app compara o espaço livre antes e depois. Quando o disco ganha menos do que foi removido, ele conta o motivo em vez de fingir que deu tudo certo.
 
-Na primeira vez, uma apresentação curta de cinco passos mostra o que ele faz enquanto a análise já roda por trás. Depois, fechar a janela deixa o Respiro na barra de menus com o espaço livre à vista; se o disco apertar, o anel fica vermelho. No Histórico tem um gráfico do espaço livre ao longo dos meses. E o app fala português, inglês e espanhol, seguindo o idioma do seu Mac.
+Na primeira vez, uma apresentação curta de cinco passos mostra o que ele faz enquanto a análise já roda por trás. Depois, fechar a janela deixa o Respiro na barra de menus com o espaço livre à vista; se o disco apertar, o anel fica vermelho. No Histórico tem um gráfico do espaço livre ao longo dos meses. Se o Mac começar a travar, <kbd>⌘</kbd> <kbd>D</kbd> abre o [Desempenho](#desempenho-quando-o-mac-trava-por-memória), com memória, swap, processos e Docker ao vivo. E o app fala português, inglês e espanhol, seguindo o idioma do seu Mac.
 
 <details>
 <summary><b>Quero ver mais telas</b></summary>
@@ -90,9 +91,25 @@ Cache não é tudo. Aperte ⌘E (ou o ícone de blocos na barra) e o Respiro mos
 
 Arquivo seu nunca vem marcado sozinho (só as cópias extras de um duplicado). Você marca, confirma que são seus e eles vão para a Lixeira. Biblioteca, iCloud, chaves, `.git`, Fotos e discos de VM ficam com cadeado.
 
+## Desempenho: quando o Mac trava por memória
+
+Aperte ⌘D (ou o ícone de medidor na barra). O Respiro mostra a memória ao vivo, do jeito do Monitor de Atividade, mas dizendo o que fazer:
+
+- **Memória:** em uso, pressão do macOS (normal, atenção, crítica), comprimida, cache e swap, com o gráfico dos últimos 15 minutos.
+- **Apps:** processos juntos por app (todo o Chrome numa linha, a máquina virtual do app dono junto), com memória e CPU.
+- **Desenvolvimento:** typecheck, lint, testes, builds, gates, servidores de dev, navegadores de teste e servidores MCP, com o projeto, há quanto tempo rodam e o selo **órfão** quando o terminal ou a sessão que os abriu já fechou.
+- **Docker:** quanto a máquina virtual reserva e usa, e cada container, com quanto tempo está ocioso.
+- **Na origem:** o que mudar para o problema não voltar (limite de memória do Docker, servidores MCP repetidos em cada sessão, `npm exec` que fica na memória, typecheck que roda demais). Só mostra; quem muda é você.
+
+Encerrar pede confirmação com a lista e quanto libera. App fecha pelo próprio app, que pergunta se você quer salvar; forçar só se ele não responder, com aceite próprio. Processo do sistema e de outro usuário nunca.
+
+A **Automação** vem desligada. Você liga regras como "quando a pressão ficar crítica por 5 minutos, encerrar ferramentas de dev órfãs" ou "parar containers ociosos há 30 minutos", cada uma em "Só avisar" ou "Agir". O automático só encerra ferramenta de tarefa (typecheck, lint, teste, build, gate) órfã e fora dos protegidos; o resto vira aviso do macOS. Tudo vai para um registro, e "Automação ligada" na barra de menus desliga tudo de uma vez.
+
+O próprio Respiro fica leve: com a página fechada, só lê a memória a cada 30 segundos (dois comandos de milissegundos), e o rodapé da página mostra quanto ele usa.
+
 ## "Tá, mas é seguro?"
 
-Pergunta justa. A resposta curta: ele não mexe sozinho em documento, foto, código, configuração nem nada que você criou (no Explorar, só o que você marcar, e vai para a Lixeira). E só um arquivo do código apaga alguma coisa (`src/main/cleaner.js`); o `npm run check` reprova qualquer outro.
+Pergunta justa. A resposta curta: ele não mexe sozinho em documento, foto, código, configuração nem nada que você criou (no Explorar, só o que você marcar, e vai para a Lixeira). E só um arquivo do código apaga alguma coisa (`src/main/cleaner.js`); o `npm run check` reprova qualquer outro. No Desempenho é igual: só `src/main/relief.js` encerra processo ou para container, e app com janela fecha pelo próprio app, que pergunta se você quer salvar.
 
 A resposta longa é o jeito como ele separa as coisas:
 
@@ -116,6 +133,8 @@ flowchart TD
 - Os comandos vêm de uma lista fechada e rodam sem shell. Nada de concatenar texto em comando.
 - Pasta vai para a Lixeira. Apagar para sempre só acontece por comando oficial da ferramenta ou quando você esvazia a Lixeira.
 - Pasta criada com `sudo`: o macOS pede sua senha, o Respiro devolve a pasta para o seu usuário e só então manda para a Lixeira. Ele nunca apaga nada como administrador.
+- Encerrar processo e parar container moram em [`src/main/relief.js`](src/main/relief.js), com a mesma trava do `npm run check`. Processo do sistema, de outro usuário e o próprio Respiro nunca. Antes de cada sinal, o processo é conferido de novo (mesmo número, mesmo início, mesmo comando), para não acertar um processo novo que herdou o número.
+- Forçar só aparece para o que não respondeu ao pedido normal, com aceite próprio. O automático nunca força, nunca fecha app e só encerra ferramenta de dev de tarefa (typecheck, lint, teste, build, gate) órfã e fora dos protegidos.
 
 </details>
 
@@ -149,6 +168,8 @@ Por enquanto o build é para Apple Silicon. Tem Mac Intel? Clone o projeto e rod
 | Acesso Total ao Disco | medir a Lixeira | tudo funciona, só a Lixeira fica sem tamanho |
 | Acesso a Documentos, Mesa e Downloads | achar pastas geradas de projetos guardados ali | ele pula essas pastas |
 | Senha de administrador | devolver para você uma pasta criada com `sudo` | aquele item não é limpo e nada muda |
+| Controlar outro app | fechar um app pelo próprio app (Desempenho), para ele perguntar se você quer salvar | o app fica aberto; dá para forçar com confirmação |
+| Notificações | avisar quando uma regra do Desempenho dispara | a ação continua indo para o registro |
 
 ## Atalhos
 
@@ -157,6 +178,8 @@ Por enquanto o build é para Apple Silicon. Tem Mac Intel? Clone o projeto e rod
 | Analisar de novo | <kbd>⌘</kbd> <kbd>R</kbd> |
 | Abrir os Ajustes | <kbd>⌘</kbd> <kbd>,</kbd> |
 | Ver o histórico | <kbd>⌘</kbd> <kbd>Y</kbd> |
+| Explorar o disco | <kbd>⌘</kbd> <kbd>E</kbd> |
+| Desempenho (memória e processos) | <kbd>⌘</kbd> <kbd>D</kbd> |
 | Voltar um passo ou fechar | <kbd>Esc</kbd> |
 | Marcar um item | <kbd>Espaço</kbd> |
 | Andar por listas, menus e filtros | <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> |
@@ -284,6 +307,7 @@ Para entender as decisões: [`PRD.md`](PRD.md) explica o produto e as regras de 
 - [x] Barra de menus com aviso de disco cheio, gráfico do espaço livre, boas-vindas
 - [x] Explorar: mapa do disco, arquivos grandes e duplicados
 - [x] Snapshots do Time Machine e backups de iPhone
+- [x] Desempenho: memória, processos, ferramentas de dev órfãs, Docker e automação opcional
 - [ ] Escolher em quais pastas procurar projetos
 - [ ] Build para Intel, assinatura e notarização
 

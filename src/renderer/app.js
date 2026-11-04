@@ -6,6 +6,8 @@ import { cleaningBusy, cleaningEvent, failCleaning, finishCleaning, openCleaning
 import { hero, ring } from './loader.js';
 import { openWelcome, refreshWelcome } from './welcome.js';
 import { openExplore } from './explore.js';
+import { openPerf } from './perf.js';
+import { perfDefaults } from '../shared/perf.js';
 import { countTo, leave, morph, swap } from './motion.js';
 
 /**
@@ -38,7 +40,7 @@ const state = {
   /** Idioma que o main resolveu para o sistema (o menu usa o mesmo). */
   systemLocale: navigator.language,
   /** @type {import('../types.js').Prefs} */ prefs: { simulate: false, staleDays: 30, theme: 'system', scanOnLaunch: true, ignored: [], locale: 'system',
-    onboarded: true, showInMenuBar: true, openAtLogin: false, lowDiskAlert: 10 },
+    onboarded: true, showInMenuBar: true, openAtLogin: false, lowDiskAlert: 10, perf: perfDefaults() },
 };
 
 /** Pílula "Limpando 2 de 5" da barra de título, só com a limpeza em segundo plano. @param {string | null} text */
@@ -658,11 +660,20 @@ const EXPLORE = /** @type {Category} */ (/** @type {unknown} */ ({ id: 'explore'
 function explore() {
   if (cleaningBusy()) { reopenCleaning(); return; }
   sheet.close();
+  if (/** @type {HTMLDialogElement} */ (byId('perf')).open) /** @type {HTMLDialogElement} */ (byId('perf')).close();
   openExplore({
     onTrash: (picks) => runClean(picks.map((p) => ({ ref: `explore/${p.id}`, category: EXPLORE,
       item: { id: p.id, name: p.name, detail: p.path, size: p.size, freeable: p.size, safe: false, action: { kind: 'trash', path: p.path } } })),
     null, [], [{ label: t('explore.backTo'), run: explore }]),
   });
+}
+
+/** Desempenho: memória, processos e Docker ao vivo. Uma camada só: fecha o sheet; com limpeza rodando, mostra a limpeza. @param {'auto'} [tab] */
+function performance(tab) {
+  if (cleaningBusy()) { reopenCleaning(); return; }
+  sheet.close();
+  if (/** @type {HTMLDialogElement} */ (byId('explore')).open) /** @type {HTMLDialogElement} */ (byId('explore')).close();
+  openPerf({ tab, announce });
 }
 
 async function openPrefs() {
@@ -865,10 +876,15 @@ api.onCommand((command) => {
   else if (command === 'preferences') openPrefs();
   else if (command === 'history') openHistory();
   else if (command === 'explore') explore();
+  else if (command === 'performance') performance();
+  // Clique no aviso do Desempenho: abre na Automação, onde está o registro.
+  else if (command === 'automation') performance('auto');
   // Clique na pílula do topo: mostra a limpeza; se a janela é nova e não tem a página, o histórico.
   else if (command === 'show-cleaning' && !reopenCleaning()) openHistory();
 });
 
+byId('btn-perf').append(svg('gauge', 18));
+byId('btn-perf').addEventListener('click', () => performance());
 byId('btn-explore').append(svg('squares-four', 18));
 byId('btn-explore').addEventListener('click', explore);
 byId('btn-history').append(svg('clock-counter-clockwise', 18));

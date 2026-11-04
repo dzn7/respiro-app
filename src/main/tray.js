@@ -80,7 +80,7 @@ function safeTotal() {
     .reduce((sum, i) => sum + (i.freeable ?? 0), 0);
 }
 
-/** @typedef {{ open: () => void, scan: () => void, preferences: () => void, quit: () => void, scanning: () => boolean }} Actions */
+/** @typedef {{ open: () => void, scan: () => void, preferences: () => void, performance: () => void, toggleAuto: () => void, quit: () => void, scanning: () => boolean }} Actions */
 
 /** @type {Tray | null} */
 let tray = null;
@@ -133,6 +133,10 @@ export async function update() {
     { type: 'separator' },
     { label: t('tray.open'), click: a.open },
     { label: t('tray.scan'), click: a.scan, enabled: !a.scanning() },
+    { label: t('tray.performance'), click: a.performance },
+    // Só com alguma regra do Desempenho configurada: desliga todas de uma vez (S19).
+    ...(Object.values(store.data.prefs.perf.rules).some((r) => r.on)
+      ? [{ label: t('tray.automation'), type: /** @type {const} */ ('checkbox'), checked: store.data.prefs.perf.auto, click: a.toggleAuto }] : []),
     { label: t('tray.prefs'), click: a.preferences },
     { type: 'separator' },
     { label: t('tray.quit'), click: a.quit },

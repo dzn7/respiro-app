@@ -10,6 +10,10 @@ import { CATEGORIES, ORDER, scanCategories } from './scan.js';
 import * as store from './store.js';
 import { diskInfo, home, loadShellPath, tilde } from './sys.js';
 import * as explore from './explore.js';
+import * as perf from './perf.js';
+import { endTargets, stopContainers } from './relief.js';
+import { initWatch, log } from './watch.js';
+import { perfPrefs } from '../shared/perf.js';
 import { initIsland, island } from './island.js';
 import * as tray from './tray.js';
 
@@ -47,7 +51,7 @@ function createWindow() {
   win.webContents.on('will-navigate', (e) => e.preventDefault());
 }
 
-/** @param {'rescan' | 'preferences' | 'history' | 'show-cleaning' | 'explore'} command */
+/** @param {import('../types.js').Command} command */
 const send = (command) => () => win?.webContents.send('respiro:command', command);
 
 /** Abre (ou recria) a janela e volta ao Dock. */
@@ -57,7 +61,7 @@ function showWindow() {
   else { win.show(); win.focus(); }
 }
 
-/** Abre a janela e manda um comando à tela; se a janela acabou de nascer, espera a página carregar. @param {'preferences' | 'show-cleaning'} name */
+/** Abre a janela e manda um comando à tela; se a janela acabou de nascer, espera a página carregar. @param {import('../types.js').Command} name */
 function command(name) {
   const fresh = !win;
   showWindow();
@@ -70,6 +74,13 @@ const trayActions = {
   open: showWindow,
   scan: () => { startScan(); },
   preferences: () => command('preferences'),
+  performance: () => command('performance'),
+  // "Automação ligada" na barra de menus: desliga todas as regras de uma vez, sem perder a configuração (S19).
+  toggleAuto: () => {
+    store.data.prefs.perf = { ...store.data.prefs.perf, auto: !store.data.prefs.perf.auto };
+    store.save();
+    tray.update();
+  },
   quit: () => app.quit(),
   scanning: () => Boolean(scanning),
 };
@@ -102,6 +113,7 @@ function buildMenu() {
     ] },
     { label: t('menu.view'), submenu: [
       { label: t('menu.explore'), accelerator: 'Command+E', click: send('explore') },
+      { label: t('menu.performance'), accelerator: 'Command+D', click: send('performance') },
       { label: t('menu.rescan'), accelerator: 'Command+R', click: send('rescan') },
       { label: t('menu.history'), accelerator: 'Command+Y', click: send('history') },
       { type: 'separator' },
@@ -279,6 +291,15 @@ async function retryDeferred() {
   }
 }
 
+/** Quem é o usuário e quem é o próprio Respiro (nunca encerrado, S16), e a lista de protegidos. @returns {import('./perf.js').Ctx} */
+const perfCtx = () => ({ me: process.getuid?.() ?? -1, self: new Set(app.getAppMetrics().map((m) => m.pid)), protected: store.data.prefs.perf.protected });
+
+/** Memória e CPU do próprio Respiro agora (todos os processos dele), para o rodapé do Desempenho. */
+function selfUsage() {
+  const metrics = app.getAppMetrics();
+  return { mem: metrics.reduce((s, m) => s + (m.memory?.workingSetSize ?? 0) * 1024, 0), cpu: metrics.reduce((s, m) => s + m.cpu.percentCPUUsage, 0) };
+}
+
 function registerIpc() {
   handle('respiro:state', async () => ({
     disk: await diskInfo({ wait: !store.data.scan }), scan: store.data.scan, history: store.data.history, samples: store.data.samples, prefs: store.data.prefs, scanning: Boolean(scanning),
@@ -335,6 +356,7 @@ function registerIpc() {
     if (['system', 'pt-BR', 'en', 'es'].includes(next?.locale)) prefs.locale = next.locale;
     for (const key of /** @type {const} */ (['onboarded', 'showInMenuBar', 'openAtLogin'])) if (typeof next?.[key] === 'boolean') prefs[key] = next[key];
     if ([0, 10, 15, 20].includes(next?.lowDiskAlert)) prefs.lowDiskAlert = next.lowDiskAlert;
+    if (next?.perf && typeof next.perf === 'object') prefs.perf = perfPrefs(next.perf, before.perf);
     if (Array.isArray(next?.ignored) && next.ignored.length <= 1000) {
       prefs.ignored = next.ignored
         .filter((/** @type {any} */ i) => typeof i?.ref === 'string' && i.ref.includes('/') && typeof i.name === 'string' && typeof i.category === 'string')
@@ -349,6 +371,7 @@ function registerIpc() {
     if (prefs.locale !== before.locale) applyLocale();
     if (prefs.openAtLogin !== before.openAtLogin) app.setLoginItemSettings({ openAtLogin: prefs.openAtLogin });
     if (prefs.showInMenuBar !== before.showInMenuBar || prefs.lowDiskAlert !== before.lowDiskAlert) tray.syncTray(trayActions);
+    else if (prefs.perf !== before.perf) tray.update();
     // Item que voltou a ser mostrado só reaparece analisando a categoria dele de novo.
     const restored = before.ignored.filter((i) => !prefs.ignored.some((j) => j.ref === i.ref)).map((i) => i.ref.slice(0, i.ref.indexOf('/')));
     const rescan = new Set([...restored, ...(prefs.staleDays !== before.staleDays ? ['node'] : [])]);
@@ -366,6 +389,21 @@ function registerIpc() {
     if (kind === 'large') return explore.largeFiles();
     if (kind === 'duplicates') return explore.duplicates((read, total) => send({ kind: 'read', read, total }));
     throw new Error('error.invalidRequest');
+  });
+
+  // Desempenho: a leitura só lê; encerrar e parar passam pelo relief.js com os ids da última leitura que a tela viu (S4, S15).
+  handle('respiro:perf', async (/** @type {unknown} */ kind, /** @type {unknown} */ ids) => {
+    if (kind === 'snapshot') {
+      return { ...(await perf.snapshot(perfCtx())), self: selfUsage(), log: store.data.perfLog.slice(0, 50), prefs: store.data.prefs.perf };
+    }
+    if (!Array.isArray(ids) || !ids.length || ids.length > 100 || !ids.every((x) => typeof x === 'string' && x.length < 600)) throw new Error('error.invalidRequest');
+    if (kind !== 'end' && kind !== 'force' && kind !== 'stop') throw new Error('error.invalidRequest');
+    const r = kind === 'stop' ? await stopContainers(ids) : await endTargets(ids.map(perf.lookup), { force: kind === 'force', ctx: perfCtx() });
+    const names = [...r.ended, ...r.stuck].map((x) => x.name).filter(Boolean);
+    if (names.length) {
+      log({ auto: false, what: msg(kind === 'stop' ? 'perf.log.stopped' : kind === 'force' ? 'perf.log.forced' : 'perf.log.ended', { n: names.length, names: names.join(', ') }), freed: r.freed });
+    }
+    return r;
   });
 
   handle('respiro:background', (/** @type {unknown} */ on) => {
@@ -400,6 +438,8 @@ app.whenReady().then(async () => {
   else createWindow();
   tray.syncTray(trayActions);
   initIsland(() => command('show-cleaning'), tray.bounds);
+  // Memória a cada 30 s (dois comandos de milissegundos); processos só quando uma regra ligada pode disparar.
+  initWatch(() => command('automation'), perfCtx);
   // statfs é barato: amostra do gráfico e título da barra a cada 5 minutos.
   tick();
   setInterval(tick, 5 * 60_000);

@@ -59,6 +59,8 @@
   /* Série do gráfico: validada (dataviz) contra --surface no claro e no escuro. */
   --chart-line: #b4552f;
   --chart-fill: rgb(180 85 47 / .10);
+  /* Segunda série (swap, no Desempenho): par validado com --chart-line no validador da skill dataviz. */
+  --chart-line-2: #4a74b5;
 
   --shadow-control: 0 .5px 1px rgb(0 0 0 / .08);
   --shadow-sheet: 0 24px 64px -12px rgb(0 0 0 / .28), 0 0 0 .5px rgb(0 0 0 / .12);
@@ -108,6 +110,7 @@
     --kind-other: #d06478;
     --chart-line: #d8774e;
     --chart-fill: rgb(216 119 78 / .14);
+    --chart-line-2: #6b93d6;
 
     --shadow-control: 0 .5px 1px rgb(0 0 0 / .3);
     --shadow-sheet: 0 24px 64px -12px rgb(0 0 0 / .5), 0 0 0 .5px rgb(255 255 255 / .1);

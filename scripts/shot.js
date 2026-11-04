@@ -1,5 +1,5 @@
 // Screenshot da janela real depois da análise.
-// npm run shot -- --theme=dark --state=main|sheet|confirm|prefs|history|explore|explore-large|explore-dupes|welcome --out=/caminho.png [--fresh]
+// npm run shot -- --theme=dark --state=main|sheet|confirm|prefs|history|explore|explore-large|explore-dupes|perf|perf-dev|perf-origin|perf-auto|welcome --out=/caminho.png [--fresh]
 import { execFile } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -17,6 +17,8 @@ if (process.argv.includes('--fresh')) process.env.RESPIRO_DATA = mkdtempSync(joi
 const wait = (sel) => `new Promise((ok) => { const t = setInterval(() => { if (document.querySelector(${JSON.stringify(sel)})) { clearInterval(t); ok(); } }, 300); })`;
 /** Abre o Explorar e escolhe a aba pelo índice. @param {number} tab */
 const explore = (tab) => `document.getElementById('btn-explore').click(); document.querySelectorAll('#explore .seg-option')[${tab}].click();`;
+/** Abre o Desempenho, espera a primeira leitura e escolhe a aba pelo índice. @param {number} tab */
+const perf = (tab) => `document.getElementById('btn-perf').click(); ${wait('#perf .p-stats')}.then(() => document.querySelectorAll('#perf .x-doc > .seg .seg-option')[${tab}].click());`;
 
 const STEPS = {
   main: '',
@@ -27,6 +29,10 @@ const STEPS = {
   explore: `${explore(0)} ${wait('#explore .treemap .tm-tile')}`,
   'explore-large': `${explore(1)} ${wait('#explore .x-row')}`,
   'explore-dupes': explore(2),
+  perf: perf(0),
+  'perf-dev': perf(1),
+  'perf-origin': perf(3),
+  'perf-auto': perf(4),
   // Com --fresh: boas-vindas no passo 2 (cartões das categorias).
   welcome: "document.querySelector('#welcome [data-primary]')?.click()",
 };

@@ -3,22 +3,25 @@ import { app } from 'electron';
 import { readFileSync } from 'node:fs';
 import { rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { perfDefaults, perfPrefs } from '../shared/perf.js';
 
 /**
  * @typedef {{ scan: import('../types.js').Scan | null, history: import('../types.js').HistoryEntry[], samples: import('../types.js').Sample[],
- *   deferred: string[], lastAlert: number,
+ *   deferred: string[], lastAlert: number, perfLog: import('../types.js').PerfLog[],
  *   prefs: import('../types.js').Prefs, sizeCache: import('../types.js').ScanContext['sizeCache'] }} Data
  */
 
 /** @type {Data} */
-export let data = { scan: null, history: [], samples: [], deferred: [], lastAlert: 0, prefs: { simulate: false, staleDays: 30, theme: 'system', scanOnLaunch: true, ignored: [], locale: 'system',
-  onboarded: false, showInMenuBar: true, openAtLogin: false, lowDiskAlert: 10 }, sizeCache: {} };
+export let data = { scan: null, history: [], samples: [], deferred: [], lastAlert: 0, perfLog: [], prefs: { simulate: false, staleDays: 30, theme: 'system', scanOnLaunch: true, ignored: [], locale: 'system',
+  onboarded: false, showInMenuBar: true, openAtLogin: false, lowDiskAlert: 10, perf: perfDefaults() }, sizeCache: {} };
 const file = () => join(app.getPath('userData'), 'respiro.json');
 
 export function load() {
   try {
     const saved = JSON.parse(readFileSync(file(), 'utf8'));
     data = { ...data, ...saved, prefs: { ...data.prefs, ...saved.prefs } };
+    // Regra nova de versão nova entra com o padrão; a salva passa pelo mesmo saneador da tela (arquivo editado à mão não quebra).
+    data.prefs.perf = perfPrefs(saved.prefs?.perf, perfDefaults());
   } catch { /* primeira abertura */ }
 }
 

@@ -129,7 +129,8 @@ Phosphor Icons, peso **regular**, SVG inline gerado por `npm run icons` a partir
 |---|---|---|
 | Glifo branco no quadrado colorido da categoria (28 px; 32 px no sheet) | ver tabela de categorias | 16 |
 | Linha, botão com texto, estado, item de menu | — | 14–16 |
-| Botão só ícone da barra de título | `squares-four`, `clock-counter-clockwise`, `arrow-clockwise`, `gear-six` | 18 |
+| Botão só ícone da barra de título | `gauge`, `squares-four`, `clock-counter-clockwise`, `arrow-clockwise`, `gear-six` | 18 |
+| Desempenho: pressão, protegido, ferramenta de dev, Docker | `check-circle`/`warning`/`warning-octagon`, `lock-simple`, `terminal-window`, `shipping-container` | 14–16 |
 | Menu de ações do item | `dots-three` → `folder-open`, `copy` | 16 / 14 |
 | Select | `caret-up-down` | 12 |
 | Disclosure e chevron da linha | `caret-right` | 12 |
@@ -280,6 +281,7 @@ Estados: hover, pressionado (brilho −6 %), foco visível, ocupado ("Liberando�
 - Eixo Y com três linhas de grade (0, meio, teto "redondo" 1/2/5 × 10ⁿ) em `--separator`; rótulos e datas em `--text-secondary`, `--type-footnote`, dígitos tabulares. Texto nunca na cor da série.
 - Segmentado 30 dias / 90 dias / 1 ano ao lado do título "Espaço livre".
 - Hover e setas (Home/End) mostram cruz pontilhada, ponto vazado e dica (valor em `--type-headline`, data, "Limpeza" com bolinha). Tabela `sr-only` com todas as amostras. Menos de duas amostras: frase explicando que o gráfico se completa com o tempo.
+- Mesmo componente para a memória do Desempenho (`timeChart`), com duas séries no mesmo eixo (as duas em bytes): **Em uso** em `--chart-line` com área e **Swap** em `--chart-line-2` (`#4a74b5` claro, `#6b93d6` escuro), linha de 2 px sem área. O par passou no validador da skill `dataviz` nos dois temas (ΔE CVD 19,7 / 19,4). Duas séries = legenda sempre visível acima (traço da cor + nome em `--text-secondary`); a dica mostra os dois valores; o eixo X mostra a hora (`14:05`).
 
 ### Limpeza em andamento (`cleaning.js`)
 - Toda limpeza (Revisar e liberar, Limpar da linha, itens do detalhe, volume do Docker, esvaziar a Lixeira) troca o sheet por uma página inteira, calma como um documento: coluna de 560 px, sem brilho, sem orbe, sem efeito.
@@ -300,6 +302,22 @@ Estados: hover, pressionado (brilho −6 %), foco visível, ocupado ("Liberando�
 - **Duplicados:** começa parado (explicação e "Procurar duplicados"); lendo, anel e "3,2 GB de 10 GB comparados"; depois um grupo por conteúdo com "3 cópias de x" e "1,2 GB cada · libera 2,4 GB". A cópia que fica leva o selo "Fica"; as outras vêm marcadas e têm "Manter esta".
 - Revisar troca o conteúdo pela confirmação na mesma página: "Mover 3 itens para a Lixeira?", a lista e, no rodapé, o aceite "Entendi: são arquivos meus." antes de liberar o botão. Depois vem a página de limpeza de sempre, com "Voltar ao Explorar".
 - Carregando: anel de 16 px e o que está sendo lido ("1.200 pastas lidas"). Erro: aviso `--attention` com "Tentar de novo". Vazio: uma frase em `--text-secondary`.
+
+### Desempenho (`renderer/perf.js`; coleta em `main/perf.js`, ações em `main/relief.js`)
+- Trabalho da tela: decidir o que encerrar ou mudar para o Mac voltar a respirar. Tudo que não ajuda nessa decisão fica fora.
+- Botão `gauge` na barra de título (antes de `squares-four`), ⌘D e "Desempenho…" na barra de menus. Página inteira como o Explorar: `<dialog>` com fundo `--canvas`, coluna de 760 px, título 22/28, frase de apoio pelo estado, e rodapé fixo.
+- **Estado (sempre visível):** selo da pressão (ícone + palavra na cor do estado: normal `--safe` `check-circle`, atenção `--attention` `warning`, crítica `--danger` `warning-octagon`), quatro números tabulares em linha (Em uso "10,3 de 17,2 GB", Comprimida, Cache, Swap) e o gráfico dos últimos 15 min.
+- **Sugestões ("Dá para aliviar agora"):** até 3 linhas com a frase (número primeiro) e um botão secundário à direita ("Encerrar 3…", "Parar 2 ociosos…"). Sem sugestão, o bloco some.
+- Segmentado **Apps · Desenvolvimento · Docker · Na origem · Automação**, com a contagem nas abas que listam coisas.
+  - **Na origem:** ajustes que resolvem a causa, só com dado medido (limite do Docker, sessões e servidores MCP repetidos, `npm exec` que fica na memória, ferramenta que roda muitas vezes, máquina virtual de app). Cada um com a frase e um disclosure "Como fazer"; botão só quando o Respiro abre o lugar certo ("Abrir o Docker"). Nada é aplicado sozinho.
+  - **Apps:** lista agrupada (`.x-row`): nome em 500, "17 processos · 3,1 % CPU", memória à direita e "Encerrar…" (quiet). Cadeado neutro com dica quando protegido (o automático não toca; a pessoa ainda pode). Disclosure na linha mostra os 10 maiores processos (nome, pid em mono, memória). "Sistema" e "Outros usuários" ficam no fim, sem botão. Memória estimada pelo RSS leva "aprox.".
+  - **Desenvolvimento:** linha com `terminal-window`, "Typecheck · tsc", "juridiq-server · há 40 min", memória e o selo "órfão" (`--attention`, com a dica "Quem abriu fechou: o terminal ou a sessão não espera mais por ele."). Em cima, "Encerrar órfãos (3) · 2,1 GB" quando houver. Vazio: "Nenhuma ferramenta de dev rodando agora."
+  - **Docker:** fechado: "O Docker está fechado." e o limite configurado. Aberto: "A máquina virtual reserva 8 GB e usa 3,2 GB do Mac.", linhas de container (nome, imagem, memória, CPU, "ociosa há 25 min") com "Parar", "Parar ociosos (N)" e "Fechar o Docker".
+  - **Automação:** linhas `setting` com switch, o texto da regra e, embaixo, segmentado "Só avisar · Agir" e selects de gatilho e minutos. Protegidos em pílulas com "×" e "Adicionar…" (menu com os apps abertos). Registro em lista: data relativa, "Você" ou "Automático", o que fez, o motivo e quanto liberou.
+- **Confirmação** na mesma página (como no Explorar): "Encerrar Google Chrome?", a lista exata, o método ("O app fecha sozinho e pergunta se quer salvar." / "Recebe o sinal de encerrar, como Ctrl-C.") e "cerca de 2,1 GB". Forçar tem aceite próprio "Entendi: trabalho não salvo se perde." antes de liberar o botão `quiet danger`.
+- **Resultado:** "Liberou cerca de 2,1 GB." com visto `--safe`; quem não respondeu aparece com "Forçar…".
+- **Ao vivo sem loop:** atualiza a cada 5 s só com a página aberta e visível; confirmação e resultado congelam a leitura (a lista confirmada é a que sai). Números trocam sem animar. Nada pisca nem pulsa; o anel de 16 px só no primeiro carregamento. Região com o mouse ou o foco (estado, aba, rodapé) espera para atualizar: nada pula embaixo do clique.
+- Rodapé: "O Respiro usa 182 MB e 0,4 % da CPU." em `--text-secondary` à esquerda; Fechar à direita. A coluna inteira rola (o estado não espreme a lista).
 
 ### Segundo plano e pílula do topo (`island.js`)
 - Na página da limpeza, "Continuar em segundo plano" (secundário, ao lado da dica) fecha a página e a limpeza segue no main. Na barra de título aparece a pílula "Limpando 2 de 5" com o anel de 12 px; o clique reabre a página.
@@ -322,7 +340,8 @@ Estados: hover, pressionado (brilho −6 %), foco visível, ocupado ("Liberando�
 
 ### Barra de menus (`tray.js`)
 - Ícone template de 18 pt desenhado em código (o mesmo anel do logo) com o espaço livre ao lado em dígitos tabulares. Disco abaixo do limite: o anel deixa de ser template e fica `--danger`.
-- Menu nativo: "X livres de Y", aviso de pouco espaço, "Dá para liberar X · análise há…", Abrir Respiro, Analisar agora, Ajustes…, Encerrar Respiro.
+- Menu nativo: "X livres de Y", aviso de pouco espaço, "Dá para liberar X · análise há…", Abrir Respiro, Analisar agora, Desempenho…, "Automação ligada" (com marca; só aparece com alguma regra configurada), Ajustes…, Encerrar Respiro.
+- Aviso nativo do Desempenho: título curto ("Memória apertada há 5 min") e a frase do que fez ou do que sugere; o clique abre a página em Automação.
 
 ## Movimento
 
@@ -393,13 +412,23 @@ Regras: nada em loop além do spinner e do placeholder, e só enquanto a anális
 | Protegido | Projeto ativo, fica de fora. |
 | Instalador | Instalar o Respiro · Arraste o ícone até a pasta Aplicativos. |
 | Sem acesso | Para medir a Lixeira, o Respiro precisa de Acesso Total ao Disco. |
+| Pressão normal | A memória está tranquila. |
+| Pressão em atenção | A memória está apertada. O Mac usa o disco (swap) para compensar. |
+| Pressão crítica | A memória acabou. O Mac pode travar até algo fechar. |
+| Swap alto com pressão normal | O swap está em 10 GB. Fechar o que não usa devolve fôlego. |
+| Órfão | Quem abriu fechou: o terminal ou a sessão não espera mais por ele. |
+| Sugestão | 3 typechecks órfãos rodando há 40 min usam 2,1 GB. |
+| Encerrar app | O app fecha sozinho e pergunta se quer salvar. |
+| Forçar | Fecha na hora, sem salvar. Trabalho não salvo se perde. |
+| Aviso automático | Encerrei 2 testes órfãos: a memória estava crítica há 5 min. |
 
 ## Acessibilidade
 
 - Contraste: texto ≥ 4,5:1, controles e foco ≥ 3:1, medidos pelo `npm run check`.
 - Foco: anel de 2 px `--accent` com afastamento de 2 px em `:focus-visible`, nunca removido.
-- Teclado: Tab percorre barra de título → destaque → linhas; Enter abre detalhe; Espaço marca item; Esc fecha popover, depois sheet, e devolve o foco a quem abriu; ⌘R reanalisa; ⌘, ajustes; ⌘Y histórico.
+- Teclado: Tab percorre barra de título → destaque → linhas; Enter abre detalhe; Espaço marca item; Esc fecha popover, depois sheet, e devolve o foco a quem abriu; ⌘R reanalisa; ⌘, ajustes; ⌘Y histórico; ⌘E Explorar; ⌘D Desempenho.
 - Componentes próprios seguem os padrões WAI-ARIA: checkbox, switch, listbox (com `aria-activedescendant`), menu (foco itinerante) e disclosure (`aria-expanded` + painel `inert`). Teclas de cada um estão na seção Componentes.
 - VoiceOver: barra com frase completa; ícones decorativos ocultos; status da análise e resultado da limpeza em região `aria-live="polite"`; botões só ícone com nome; número que conta é anunciado pelo resumo final, não a cada quadro.
 - Zoom do texto (⌘+) não quebra layout: medidas de texto em px escalam com o zoom do Electron.
 - Cor nunca sozinha: seguro, atenção e protegido têm ícone e palavra.
+- Desempenho: a atualização a cada 5 s não é anunciada; só a mudança do nível de pressão vai para a região `aria-live` ("Memória apertada"). O gráfico tem tabela `sr-only`; cada linha tem o nome completo do que o botão encerra ("Encerrar Google Chrome").

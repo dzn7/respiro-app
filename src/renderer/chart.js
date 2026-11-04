@@ -1,5 +1,6 @@
-// Gráfico do Histórico: espaço livre no tempo. Série única (--chart-line, validada no claro e no escuro),
-// ponto em cada limpeza, dica no hover e nas setas do teclado, tabela para leitor de tela.
+// Gráfico de linha no tempo: o espaço livre do Histórico (série única) e a memória do Desempenho (em uso e swap, mesmo
+// eixo, em bytes). Cores --chart-line e --chart-line-2, validadas no claro e no escuro; ponto em cada limpeza; dica no
+// hover e nas setas do teclado; tabela para leitor de tela.
 import { h } from './controls.js';
 import { formatBytes, formatDateTime, t } from '../shared/i18n.js';
 
@@ -24,22 +25,31 @@ export function niceMax(v) {
 }
 
 /**
- * @param {import('../types.js').Sample[]} samples @param {import('../types.js').HistoryEntry[]} cleanups
- * @param {number} days @param {number} [now]
+ * @typedef {{ at: number } & Record<string, number>} Point
+ * @typedef {{
+ *   series: { key: string, label: string }[], from: number, now: number, x: (at: number) => string,
+ *   label: (start: number, min: number, max: number) => string, title: string, date: string, empty: string,
+ *   marks?: number[], markLabel?: string,
+ * }} ChartOptions
  */
-export function freeChart(samples, cleanups, days, now = Date.now()) {
-  const from = now - days * DAY;
-  const points = samples.filter((s) => s.at >= from).sort((a, b) => a.at - b.at);
-  if (points.length < 2) return h('p', { class: 'empty chart-empty' }, t('chart.empty'));
+
+/**
+ * Uma ou duas séries no mesmo eixo; a primeira com área. Duas séries = legenda em cima (cor nunca sozinha).
+ * @param {{ at: number }[]} data @param {ChartOptions} o
+ */
+export function timeChart(data, o) {
+  const points = /** @type {Point[]} */ (data).filter((p) => p.at >= o.from).sort((a, b) => a.at - b.at);
+  if (points.length < 2) return h('p', { class: 'empty chart-empty' }, o.empty);
+  const { series, now } = o;
+  const first = points.map((p) => p[series[0].key]);
 
   const start = points[0].at;
-  const top = niceMax(Math.max(...points.map((p) => p.free)) * 1.1);
+  const top = niceMax(Math.max(...points.flatMap((p) => series.map((s) => p[s.key]))) * 1.1);
   const x = (/** @type {number} */ at) => PAD.left + ((at - start) / Math.max(1, now - start)) * (W - PAD.left - PAD.right);
-  const y = (/** @type {number} */ free) => PAD.top + (1 - free / top) * (H - PAD.top - PAD.bottom);
+  const y = (/** @type {number} */ v) => PAD.top + (1 - v / top) * (H - PAD.top - PAD.bottom);
   const base = y(0);
 
-  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart-svg', role: 'img', tabindex: 0,
-    'aria-label': t('chart.label', { start, min: Math.min(...points.map((p) => p.free)), max: Math.max(...points.map((p) => p.free)) }) });
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart-svg', role: 'img', tabindex: 0, 'aria-label': o.label(start, Math.min(...first), Math.max(...first)) });
   for (const v of [0, top / 2, top]) {
     svg.append(el('line', { x1: PAD.left, x2: W - PAD.right, y1: y(v), y2: y(v), class: 'chart-grid' }));
     const label = el('text', { x: PAD.left - 8, y: y(v) + 4, class: 'chart-axis', 'text-anchor': 'end' });
@@ -49,22 +59,26 @@ export function freeChart(samples, cleanups, days, now = Date.now()) {
   }
   for (const [at, anchor] of /** @type {const} */ ([[start, 'start'], [now, 'end']])) {
     const label = el('text', { x: x(at), y: H - 6, class: 'chart-axis', 'text-anchor': anchor });
-    label.textContent = new Intl.DateTimeFormat(document.documentElement.lang, { day: 'numeric', month: 'short' }).format(at);
+    label.textContent = o.x(at);
     svg.append(label);
   }
 
-  const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(p.at).toFixed(1)},${y(p.free).toFixed(1)}`).join('');
-  svg.append(el('path', { d: `${line}L${x(points.at(-1)?.at ?? now).toFixed(1)},${base}L${x(start).toFixed(1)},${base}Z`, class: 'chart-area' }));
-  svg.append(el('path', { d: line, class: 'chart-line' }));
+  series.forEach((s, i) => {
+    const line = points.map((p, j) => `${j ? 'L' : 'M'}${x(p.at).toFixed(1)},${y(p[s.key]).toFixed(1)}`).join('');
+    if (i === 0) svg.append(el('path', { d: `${line}L${x(points.at(-1)?.at ?? now).toFixed(1)},${base}L${x(start).toFixed(1)},${base}Z`, class: 'chart-area' }));
+    svg.append(el('path', { d: line, class: 'chart-line', 'data-series': i }));
+  });
 
   // Limpeza: ponto na amostra tirada logo depois dela.
-  const marks = cleanups.filter((c) => c.at >= start).map((c) => points.find((p) => p.at >= c.at) ?? points.at(-1)).filter((p) => p !== undefined);
-  for (const p of marks) svg.append(el('circle', { cx: x(p.at), cy: y(p.free), r: 4, class: 'chart-mark' }));
+  const marks = (o.marks ?? []).filter((at) => at >= start).map((at) => points.find((p) => p.at >= at) ?? points.at(-1)).filter((p) => p !== undefined);
+  for (const p of marks) svg.append(el('circle', { cx: x(p.at), cy: y(p[series[0].key]), r: 4, class: 'chart-mark' }));
 
   const cross = el('line', { y1: PAD.top, y2: base, class: 'chart-cross', visibility: 'hidden' });
-  const dot = el('circle', { r: 4.5, class: 'chart-dot', visibility: 'hidden' });
-  svg.append(cross, dot);
+  const dots = series.map((_, i) => el('circle', { r: 4.5, class: 'chart-dot', 'data-series': i, visibility: 'hidden' }));
+  svg.append(cross, ...dots);
   const tip = h('div', { class: 'chart-tip', hidden: true });
+  const legend = series.length > 1 && h('div', { class: 'chart-legend', 'aria-hidden': 'true' },
+    series.map((s, i) => h('span', { class: 'chart-key', 'data-series': i }, s.label)));
   const wrap = h('div', { class: 'chart' }, svg, tip);
 
   let index = -1;
@@ -72,19 +86,24 @@ export function freeChart(samples, cleanups, days, now = Date.now()) {
   const show = (i) => {
     index = Math.max(0, Math.min(points.length - 1, i));
     const p = points[index];
-    for (const node of [cross, dot]) node.setAttribute('visibility', 'visible');
+    for (const node of [cross, ...dots]) node.setAttribute('visibility', 'visible');
     cross.setAttribute('x1', String(x(p.at)));
     cross.setAttribute('x2', String(x(p.at)));
-    dot.setAttribute('cx', String(x(p.at)));
-    dot.setAttribute('cy', String(y(p.free)));
-    tip.replaceChildren(h('span', { class: 'chart-tip-value' }, formatBytes(p.free)), h('span', {}, formatDateTime(p.at)),
-      ...(marks.includes(p) ? [h('span', { class: 'chart-tip-mark' }, t('chart.cleanup'))] : []));
+    dots.forEach((dot, j) => {
+      dot.setAttribute('cx', String(x(p.at)));
+      dot.setAttribute('cy', String(y(p[series[j].key])));
+    });
+    const values = series.length > 1
+      ? series.map((s, j) => h('span', { class: 'chart-tip-series', 'data-series': j }, `${s.label} `, h('span', { class: 'chart-tip-value' }, formatBytes(p[s.key]))))
+      : [h('span', { class: 'chart-tip-value' }, formatBytes(p[series[0].key]))];
+    tip.replaceChildren(...values, h('span', {}, formatDateTime(p.at)),
+      ...(marks.includes(p) ? [h('span', { class: 'chart-tip-mark' }, o.markLabel ?? '')] : []));
     tip.hidden = false;
     const left = (x(p.at) / W) * 100;
     tip.style.setProperty('--x', `${left}%`);
     tip.toggleAttribute('data-flip', left > 70);
   };
-  const hide = () => { index = -1; tip.hidden = true; for (const node of [cross, dot]) node.setAttribute('visibility', 'hidden'); };
+  const hide = () => { index = -1; tip.hidden = true; for (const node of [cross, ...dots]) node.setAttribute('visibility', 'hidden'); };
   svg.addEventListener('pointermove', (e) => {
     const box = svg.getBoundingClientRect();
     const at = start + (((e.clientX - box.left) / box.width) * W - PAD.left) / (W - PAD.left - PAD.right) * (now - start);
@@ -101,8 +120,22 @@ export function freeChart(samples, cleanups, days, now = Date.now()) {
     if (e.key === 'End') { e.preventDefault(); show(points.length - 1); }
   });
 
-  const table = h('table', { class: 'sr-only' }, h('caption', {}, t('chart.title')),
-    h('tr', {}, h('th', {}, t('chart.date')), h('th', {}, t('chart.free'))),
-    points.map((p) => h('tr', {}, h('td', {}, formatDateTime(p.at)), h('td', {}, formatBytes(p.free)))));
-  return h('div', {}, wrap, table);
+  const table = h('table', { class: 'sr-only' }, h('caption', {}, o.title),
+    h('tr', {}, h('th', {}, o.date), series.map((s) => h('th', {}, s.label))),
+    points.map((p) => h('tr', {}, h('td', {}, formatDateTime(p.at)), series.map((s) => h('td', {}, formatBytes(p[s.key]))))));
+  return h('div', {}, legend, wrap, table);
+}
+
+/**
+ * Espaço livre do Histórico nos últimos `days` dias, com um ponto em cada limpeza.
+ * @param {import('../types.js').Sample[]} samples @param {import('../types.js').HistoryEntry[]} cleanups
+ * @param {number} days @param {number} [now]
+ */
+export function freeChart(samples, cleanups, days, now = Date.now()) {
+  const day = new Intl.DateTimeFormat(document.documentElement.lang, { day: 'numeric', month: 'short' });
+  return timeChart(samples, {
+    series: [{ key: 'free', label: t('chart.free') }], from: now - days * DAY, now, x: (at) => day.format(at),
+    label: (start, min, max) => t('chart.label', { start, min, max }), title: t('chart.title'), date: t('chart.date'), empty: t('chart.empty'),
+    marks: cleanups.map((c) => c.at), markLabel: t('chart.cleanup'),
+  });
 }

@@ -101,6 +101,91 @@ export interface Prefs {
   openAtLogin: boolean;
   /** Avisar quando o livre cair abaixo desta porcentagem (0 = desligado). */
   lowDiskAlert: 0 | 10 | 15 | 20;
+  perf: PerfPrefs;
+}
+
+// ---------- Desempenho ----------
+
+export type Pressure = 'normal' | 'warn' | 'critical';
+
+/** Memória num momento, em bytes, com as contas do Monitor de Atividade (em uso = apps + fixa + comprimida). */
+export interface Memory {
+  at: number; total: number; used: number; app: number; wired: number; compressed: number; cached: number;
+  swapUsed: number; swapTotal: number; pressure: Pressure;
+}
+
+/** Ponto do gráfico dos últimos 15 min (e da decisão das regras). */
+export interface TrendPoint { at: number; used: number; swap: number; total: number; pressure: Pressure }
+
+/** Processo como o ps leu (só no main). `mem` = footprint quando o top já leu; senão o RSS. */
+export interface Proc { pid: number; ppid: number; uid: number; start: number; cpu: number; rss: number; tty: string; args: string; mem?: number }
+
+export type DevKind = 'typecheck' | 'lint' | 'test' | 'build' | 'gate' | 'server' | 'browser' | 'mcp';
+
+/** Linha da aba Apps. `id` vai de volta ao main para encerrar (S4); `exact` = footprint, não RSS. */
+export interface PerfGroup {
+  id: string; name: string; kind: 'app' | 'cli' | 'vm' | 'system'; count: number; mem: number; cpu: number; exact: boolean;
+  protected: boolean; endable: boolean; top: { pid: number; name: string; mem: number; cpu: number }[];
+}
+
+/** Ferramentas de dev do mesmo tipo e nome, juntas. `orphan` = ninguém espera mais por elas. */
+export interface DevRow {
+  id: string; kind: DevKind; name: string; count: number; projects: string[]; since: number; mem: number; cpu: number;
+  orphan: boolean; protected: boolean; host: string | null;
+}
+
+export interface Container { id: string; name: string; image: string; mem: number; cpu: number; idleSince: number | null; protected: boolean }
+
+export interface DockerState {
+  installed: boolean; running: boolean;
+  /** memória da VM: a que o Docker diz ter (aberto) ou a configurada (fechado); null = padrão (metade da RAM) */
+  limit: number | null;
+  /** quanto a VM usa do Mac agora (footprint) */
+  vm: number | null;
+  containers: Container[];
+  /** grupo do app Docker, para "Fechar o Docker" */
+  appId: string | null;
+}
+
+export interface Suggestion {
+  id: string; text: Msg;
+  /** passo a passo para resolver na origem */
+  how?: Msg;
+  action?: { kind: 'end' | 'stop' | 'open-docker'; ids: string[]; label: Msg; bytes: number };
+}
+
+export type RuleId = 'orphans' | 'containers' | 'alert';
+export type Trigger = 'critical' | 'warn' | 'swap';
+export interface Rule { on: boolean; mode: 'notify' | 'act'; trigger: Trigger; minutes: number }
+export interface PerfPrefs {
+  /** "Automação ligada": desliga todas as regras sem perder a configuração */
+  auto: boolean;
+  rules: Record<RuleId, Rule>;
+  /** nomes (app, processo, ferramenta, container) que o automático nunca encerra */
+  protected: string[];
+}
+
+/** Só o que mudou (a barra de menus pode ter mexido no resto). */
+export interface PerfPatch { auto?: boolean; rules?: Partial<Record<RuleId, Partial<Rule>>>; protected?: string[] }
+
+export interface PerfLog { at: number; auto: boolean; rule?: RuleId; what: Msg; why?: Msg; freed: number }
+
+export interface PerfSnapshot {
+  memory: Memory; trend: TrendPoint[]; groups: PerfGroup[]; dev: DevRow[]; docker: DockerState;
+  suggestions: Suggestion[]; tips: Suggestion[];
+  /** o próprio Respiro agora */
+  self: { mem: number; cpu: number };
+  log: PerfLog[];
+  /** regras como estão agora (a barra de menus pode ter mudado) */
+  prefs: PerfPrefs;
+}
+
+export interface EndResult {
+  ended: { name: string; freed: number }[];
+  /** não responderam ao pedido normal: só estes podem ser forçados */
+  stuck: { id: string; name: string; freed: number }[];
+  refused: { name: string; why: Msg }[];
+  freed: number;
 }
 
 /** Andamento da limpeza, do main para a tela. 'disk' é o ganho do espaço livre medido até agora. */
@@ -161,11 +246,11 @@ export interface RespiroApi {
   state(): Promise<State>;
   scan(): Promise<Scan>;
   clean(refs: string[], opts?: { force?: string[] }): Promise<CleanResult>;
-  setPrefs(prefs: Partial<Prefs>): Promise<Prefs>;
+  setPrefs(prefs: Omit<Partial<Prefs>, 'perf'> & { perf?: PerfPatch }): Promise<Prefs>;
   reveal(ref: string): Promise<void>;
   open(target: 'full-disk-access' | 'docker'): Promise<void>;
   onProgress(cb: (p: Progress) => void): void;
-  onCommand(cb: (command: 'rescan' | 'preferences' | 'history' | 'show-cleaning' | 'explore') => void): void;
+  onCommand(cb: (command: Command) => void): void;
   cleaningBackground(on: boolean): Promise<void>;
   onCleanProgress(cb: (e: CleanEvent) => void): void;
   explore(kind: 'home' | 'apps' | 'disk', fresh?: 'fresh'): Promise<ExploreNode | null>;
@@ -173,7 +258,12 @@ export interface RespiroApi {
   explore(kind: 'large'): Promise<ExploreFile[]>;
   explore(kind: 'duplicates'): Promise<DuplicateGroup[]>;
   onExploreProgress(cb: (p: ExploreProgress) => void): void;
+  perf(kind: 'snapshot'): Promise<PerfSnapshot>;
+  perf(kind: 'end' | 'force' | 'stop', ids: string[]): Promise<EndResult>;
 }
+
+/** Pedidos do menu, da barra de menus e da pílula para a tela. */
+export type Command = 'rescan' | 'preferences' | 'history' | 'show-cleaning' | 'explore' | 'performance' | 'automation';
 
 declare global {
   interface Window { respiro: RespiroApi }

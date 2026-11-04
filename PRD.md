@@ -4,6 +4,8 @@
 
 Quem desenvolve no Mac perde dezenas de gigabytes para caches de pacotes, imagens e volumes do Docker, `node_modules` esquecidos, DerivedData do Xcode e navegadores de teste. O Armazenamento do macOS mostra tudo isso como "Dados do Sistema" ou "Desenvolvedor", sem dizer o que é seguro apagar. A pessoa acaba rodando `rm -rf` em pastas que não conhece ou desiste e compra disco.
 
+A memória sofre do mesmo jeito. Num Mac de 16 GB com editor, navegador, Docker, sessões de agente e gates (typecheck, testes, builds) rodando juntos, o macOS empurra memória para o disco (swap) e tudo trava. O Monitor de Atividade mostra centenas de processos soltos, sem dizer quais são ferramentas de dev esquecidas nem o que dá para encerrar sem perder trabalho.
+
 ## Público
 
 Dev em macOS (Apple Silicon ou Intel) que usa Node, Docker, Xcode, Homebrew ou Python. Sabe o que é um cache, mas não quer pesquisar onde cada ferramenta guarda o seu nem qual comando limpa sem quebrar nada.
@@ -18,7 +20,8 @@ Abrir o app e, em um segundo, ver quanto do disco está ocupado, o que ocupa e q
 - Não toca em Keychain, `~/.ssh`, `~/.gnupg`, iCloud Drive, bibliotecas do Fotos, da Música e do Mail, `.env` nem em pastas do sistema; fora da pasta pessoal o Explorar só mostra.
 - Não desinstala apps nem apaga o snapshot do sistema (`com.apple.os.update…`).
 - Não usa `sudo` no terminal nem apaga nada como root. A senha de administrador só aparece no diálogo do macOS (S11).
-- Não roda limpeza agendada.
+- Não apaga arquivo sozinho. A automação do Desempenho só encerra ferramentas de dev órfãs e para containers ociosos, e só quando a pessoa liga a regra (S18).
+- Não encerra processo do sistema nem de outro usuário, e não fecha app com janela sem a pessoa pedir (S16, S17).
 - Não envia dados para fora da máquina (sem telemetria, sem rede).
 
 ## Funcionalidades
@@ -93,7 +96,7 @@ Sheet com cada item: nome, tamanho, data do último uso quando houver, e o motiv
 - Aceite: onde algo carrega aparece o anel do Respiro em movimento, não um espaço vazio: primeira análise (anel com o nome), linhas pendentes, reanálise (anel com o progresso na barra de título) e botão de limpeza em andamento.
 
 ### P1 — Barra de menus
-- Aceite: ícone com o anel e o espaço livre (dígitos tabulares), menu com livre/total, quanto dá para liberar e de quando é a análise, Abrir, Analisar agora, Ajustes e Encerrar.
+- Aceite: ícone com o anel e o espaço livre (dígitos tabulares), menu com livre/total, quanto dá para liberar e de quando é a análise, Abrir, Analisar agora, Desempenho, "Automação ligada" (marca que liga e desliga as regras do Desempenho), Ajustes e Encerrar.
 - Aceite: com a barra ligada, fechar a janela mantém o app rodando e o tira do Dock; abrir volta ao Dock.
 - Aceite: abaixo do limite escolhido, o anel fica colorido e o macOS recebe no máximo um aviso por dia.
 
@@ -104,6 +107,19 @@ Onde está o espaço além dos caches, numa página em tela cheia (⌘E): **Mapa
 - Duplicados: 20 MB para cima na pasta pessoal (fora Biblioteca, dependências, `.git`, apps e discos de VM), por tamanho, depois cabeça e cauda, depois SHA-256 completo. Fica marcada para ficar a cópia mais antiga fora de Downloads e da Mesa; as outras vêm marcadas para a Lixeira e dá para trocar em cada grupo. Lê no máximo 50 GB por rodada.
 - Aceite: marcar → confirmação própria ("são arquivos seus") com aceite → a página de limpeza de sempre → resultado e histórico; "Voltar ao Explorar" mostra a tela sem o que saiu.
 - Aceite: o que a regra S14 não deixa aparece com cadeado e "Mostrar no Finder", sem caixa de marcar.
+
+### P1 — Desempenho
+Memória, processos e Docker ao vivo, numa página em tela cheia (⌘D, botão `gauge` na barra de título e "Desempenho…" na barra de menus), com ações à mão e regras automáticas opcionais.
+- Memória: em uso de quanto há, pressão do macOS (normal, atenção, crítica, com ícone e texto), comprimida, cache e swap, com o gráfico dos últimos 15 minutos (em uso e swap). A conta é a do Monitor de Atividade: em uso = memória de apps + fixa + comprimida.
+- Apps: processos agrupados pelo app (todos os do Chrome juntos, todos do Docker, a máquina virtual atribuída ao app dono), com memória (footprint, a mesma do Monitor de Atividade), CPU e os maiores processos ao expandir. Processos do sistema e de outros usuários aparecem num grupo "Sistema", sem ação.
+- Desenvolvimento: typecheck, lint, testes, builds, gates, servidores de dev, navegadores de teste e servidores MCP, com projeto, há quanto tempo rodam, memória e o selo "órfão" quando ninguém espera mais por eles (a cadeia de processos chega ao macOS sem passar por terminal, editor, sessão de agente, `tmux` ou app).
+- Docker: memória reservada pela máquina virtual e o que ela usa no Mac, containers com memória, CPU e há quanto tempo estão ociosos.
+- Ações: encerrar um processo ou um grupo, encerrar de uma vez as ferramentas de dev órfãs, parar containers e fechar o Docker. Confirmação com a lista exata, o método e a memória estimada; o resultado mostra quanto liberou e quem não respondeu, com "Forçar…" e nova confirmação.
+- Sugestões: frases curtas com número e ação ("3 typechecks órfãos rodando há 40 min usam 2,1 GB." · Encerrar) e, em "Na origem", ajustes que reduzem o problema (limite de memória do Docker, sessões e servidores MCP repetidos, typecheck que roda muitas vezes). O app só mostra; não muda configuração nenhuma.
+- Automação (desligada por padrão): regras com gatilho (pressão crítica, pressão em atenção ou swap acima da metade da memória) por X minutos, cada uma em "Só avisar" ou "Agir"; lista de protegidos (editor, terminal, Claude e o que a pessoa acrescentar); registro de toda ação com motivo e memória liberada; aviso nativo do macOS. A barra de menus desliga tudo com um clique.
+- Leveza: com a página aberta, memória e gráfico a cada 5 s, processos a cada 10 s e o footprint (`top`, o mais caro) a cada 30 s; fechada, só a memória a cada 30 s (dois comandos de milissegundos). O rodapé mostra quanto o próprio Respiro usa.
+- Aceite: com um `tsc` órfão rodando, ele aparece em Desenvolvimento com o selo "órfão", entra na sugestão e "Encerrar órfãos" o encerra; o registro mostra a ação e a memória.
+- Aceite: "Encerrar" num app com documento não salvo faz o app perguntar se quer salvar; o Respiro não força sem a pessoa pedir.
 
 ### P1 — Histórico
 - Aceite: lista de limpezas com data, total liberado e total enviado à Lixeira; soma acumulada.
@@ -116,7 +132,7 @@ Onde está o espaço além dos caches, numa página em tela cheia (⌘E): **Mapa
 - Aceite: o app só pede quando a leitura de `~/.Trash` falha por permissão, explica por que e abre o painel certo dos Ajustes.
 
 ### P1 — Integração macOS
-Vibrancy, semáforos integrados à barra de título, fonte do sistema, claro e escuro automáticos, ⌘R reanalisa, ⌘E abre o Explorar, ⌘, abre Preferências.
+Vibrancy, semáforos integrados à barra de título, fonte do sistema, claro e escuro automáticos, ⌘R reanalisa, ⌘E abre o Explorar, ⌘D abre o Desempenho, ⌘, abre Preferências.
 
 ### P2 — Depois
 Escolha de pastas para buscar projetos, assinatura e notarização (necessárias para a notificação do macOS chegar sempre), atualização automática.
@@ -139,6 +155,12 @@ S13. Em uso na hora de limpar não é erro: o item fica para depois (pasta abert
 
 S14. Arquivo pessoal (Explorar) só vai para a Lixeira, só dentro da pasta pessoal, e só se ainda tiver o tamanho e a data de quando foi listado. Nunca: a pasta pessoal e as pastas principais dela (e as ocultas do primeiro nível), `~/Library` (iCloud Drive, Keychains, Mail, dados de apps), `~/.ssh`, `~/.gnupg`, `~/.Trash`, o que está dentro de `.git` ou de um `.app`, bibliotecas do Fotos, da Música e da TV, discos de máquina virtual (`Docker.raw`, `.vmdk`, `.qcow2`, `.vdi`, `.vhdx`). Nunca entra no "liberar com segurança" nem vem marcado, exceto as cópias extras de um duplicado. A confirmação tem aceite próprio.
 
+S15. Encerrar processo e parar container só em `src/main/relief.js`. Nenhum outro arquivo de `src/main/` chama `process.kill`, `kill` ou `stop`. O `npm run check` bloqueia.
+S16. Nunca: processo de outro usuário, pid 0 ou 1, o próprio Respiro, nem executável do sistema (`/System/`, `/usr/libexec/`, `/usr/sbin/`, `/sbin/`, `/Library/Apple/`). Na hora de agir o processo é revalidado contra uma leitura nova: mesmo pid, mesmo início e mesmo comando (pid reaproveitado não é encerrado).
+S17. App com janela (pacote `.app`) fecha pelo próprio app (`quit` pelo AppleScript), que pergunta se quer salvar. Forçar (SIGKILL) só depois, com aceite "Trabalho não salvo se perde". Processo de terminal recebe SIGTERM; forçar também pede nova confirmação. O automático nunca fecha app e nunca força.
+S18. O automático só age em ferramenta de dev de tarefa que termina (typecheck, lint, teste, build, gate) que esteja órfã e fora dos protegidos, e em container ocioso (CPU abaixo de 1 % em todas as amostras pelo tempo da regra) fora dos protegidos. Servidor de dev, navegador de teste, servidor MCP e processo que não respondeu viram aviso. Regra no modo "Só avisar" só avisa.
+S19. Toda ação do Desempenho, manual ou automática, entra no registro com a regra, o motivo e a memória liberada. Cada regra liga e desliga na hora pela página; "Automação ligada" na barra de menus desliga todas. O renderer só manda ids (S4).
+
 ## Limites conhecidos
 
 - **Clones do APFS.** pnpm, bun e uv clonam arquivos do store para `node_modules`. Apagar uma cópia não devolve blocos que outra ainda usa. No QA, `pnpm store prune` removeu 3,7 GB do store e o disco ganhou 0,16 GB. Por isso o app mede o espaço livre antes e depois e mostra os dois números, e os `node_modules` instalados por pnpm/bun aparecem sem valor previsto.
@@ -149,6 +171,11 @@ S14. Arquivo pessoal (Explorar) só vai para a Lixeira, só dentro da pasta pess
 - **Mapa.** O `du` do macOS lê pasta por pasta: numa pasta pessoal de 300 GB, a primeira leitura levou de 5 a 8 minutos no QA (rodar em paralelo não ajudou). Por isso a leitura fica guardada 6 h e as outras abas funcionam enquanto isso. O mapa não mostra o volume do sistema nem o espaço purgável.
 - **Snapshots.** O macOS não informa o tamanho de um snapshot local antes de apagar; o ganho aparece medido no fim.
 - **Duplicados.** Clones do APFS contam como cópias, mas apagar um não devolve os blocos que o outro usa; o ganho real aparece medido no fim. Sem Spotlight, a busca usa `find` e demora mais.
+- **Memória liberada.** É estimada pelo footprint que os processos encerrados usavam; o macOS pode demorar para refletir no "em uso" e no swap. Swap só diminui quando o macOS volta a usar aquelas páginas.
+- **Pressão e swap.** A pressão do macOS pode ficar "normal" com 10 GB em swap (medido no QA). Por isso as regras aceitam o swap como gatilho.
+- **Containers.** Parar um container devolve a memória à máquina virtual do Docker, não ao Mac. Ela só volta quando o Docker diminui a VM ou fecha.
+- **Órfão.** É uma heurística: serviço iniciado com `nohup` também aparece. A lista de protegidos resolve, e o automático não toca em servidor de dev.
+- **Automação.** Só roda com o app vivo: barra de menus ligada ou janela aberta.
 - **Espaço purgável.** O "livre" vem de `statfs` e não soma o espaço purgável que o Finder conta; pode sair menor que o do Finder.
 
 ## Métricas de sucesso
@@ -160,4 +187,6 @@ S14. Arquivo pessoal (Explorar) só vai para a Lixeira, só dentro da pasta pess
 | Arquivos indevidos apagados | 0 | testes do `cleaner` + comparação de caminhos protegidos antes/depois da limpeza real |
 | Precisão do valor removido | diferença ≤ 10 % entre o que o app informa e o `du` antes/depois | histórico vs `du` |
 | Honestidade do ganho real | todo resultado mostra o aumento medido do espaço livre do disco | `statfs` antes/depois de cada limpeza |
+| Leveza do Desempenho | página aberta: ≤ 6 % de um núcleo em média (medido: 3,7 s de CPU em 63 s, ≈ 0,7 % do processador de 8 núcleos); fechada: só `sysctl` e `vm_stat` a cada 30 s (medido: 0,2 s em 60 s) | `/usr/bin/time` na coleta por 60 s; rodapé da página |
+| Processos indevidos encerrados | 0 | testes do `relief`/`decide` + QA com processo do sistema, de outro usuário e protegido |
 | Primeira limpeza sem ler instrução | fluxo abrir → revisar → liberar em ≤ 3 cliques | QA |
